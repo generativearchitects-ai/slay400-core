@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<pcml version="6.0">
+  <struct name="LEAF">
+    <data name="A" type="char" length="2"/>
+    <data name="B" type="char" length="2"/>
+    <data name="C" type="char" length="2"/>
+    <data name="D" type="char" length="2"/>
+  </struct>
+  <struct name="LVL3">
+    <data name="ITEMS" type="struct" struct="LEAF" count="20"/>
+  </struct>
+  <struct name="LVL2">
+    <data name="ITEMS" type="struct" struct="LVL3" count="15"/>
+  </struct>
+  <struct name="LVL1">
+    <data name="ITEMS" type="struct" struct="LVL2" count="6"/>
+  </struct>
+  <program name="DEEPIO" path="/QSYS.LIB/DEMOLIB.LIB/DEEPIO.PGM">
+    <data name="DEEP" type="struct" struct="LVL1" count="25" usage="inputoutput"/>
+  </program>
+  <program name="DEEPOUT" path="/QSYS.LIB/DEMOLIB.LIB/DEEPOUT.PGM">
+    <data name="DEEP" type="struct" struct="LVL1" count="25" usage="output"/>
+  </program>
+</pcml>

@@ -182,6 +182,14 @@ class ValidatorUnitTest {
     }
 
     @Test
+    void aBothDirectionArrayCountsTowardTheGuaranteedTotalTooAndARequestOneDoesNot() {
+        List<Diagnostic> both = Validator.validate(model(1000, 100, Optional.of(ERRORS), array("A", 101, Direction.BOTH, Optional.empty())));
+        assertThat(both).extracting(Diagnostic::code).containsExactly("OVL022");
+        assertThat(Validator.validate(model(1000, 100, Optional.of(ERRORS), array("A", 101, Direction.REQUEST, Optional.empty()))))
+                .extracting(Diagnostic::code).doesNotContain("OVL022");
+    }
+
+    @Test
     void aTrimAnywhereOnTheWayMeansItIsNotReportedEvenThoughTheDeclaredSizeExceedsTheLimit() {
         assertThat(Validator.validate(model(1000, 100, Optional.of(ERRORS), array("A", 1000, Direction.RESPONSE, Optional.of(new Trim.DropBlank())))))
                 .extracting(Diagnostic::code).doesNotContain("OVL022");

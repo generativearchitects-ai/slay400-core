@@ -1,5 +1,6 @@
 package ai.generativearchitects.slay400.pcml.scaffold;
 
+import ai.generativearchitects.slay400.pcml.codec.ResponseValueSum;
 import ai.generativearchitects.slay400.pcml.diagnostics.Diagnostic;
 import ai.generativearchitects.slay400.pcml.diagnostics.Severity;
 import ai.generativearchitects.slay400.pcml.model.Count;
@@ -56,6 +57,24 @@ public final class OverlayScaffold {
      * @return the overlay text, or the reasons there is none
      */
     public static ScaffoldResult create(String folderName, String pcmlFileName, PcmlDocument pcml, int largeArrayThreshold) {
+        return create(folderName, pcmlFileName, pcml, largeArrayThreshold,
+                ai.generativearchitects.slay400.pcml.api.GatewayDefaults.DEFAULT_MAX_RESPONSE_VALUES);
+    }
+
+    /**
+     * @param folderName          the folder of the API, used as the title
+     * @param pcmlFileName        the PCML file, as the overlay names it: relative to the overlay file
+     * @param pcml                the parsed PCML
+     * @param largeArrayThreshold a fixed response array with at least this many elements, at any nesting level, gets
+     *                            a drop-blank {@code trim} written for it (kickoff 14, Part A)
+     * @param maxResponseValues   if what an operation always returns is still over this limit after the threshold
+     *                            rule, {@code trim: { dropBlank: true }} is written on every fixed response array of
+     *                            that operation instead, at every level (kickoff 15, Part D, decision 127); if that
+     *                            is still not enough, the text is written anyway, with an {@code SCF004} warning
+     * @return the overlay text, or the reasons there is none
+     */
+    public static ScaffoldResult create(String folderName, String pcmlFileName, PcmlDocument pcml, int largeArrayThreshold,
+                                         int maxResponseValues) {
         java.util.Objects.requireNonNull(folderName, "folderName");
         java.util.Objects.requireNonNull(pcmlFileName, "pcmlFileName");
         java.util.Objects.requireNonNull(pcml, "pcml");
@@ -87,6 +106,7 @@ public final class OverlayScaffold {
             return new ScaffoldResult(Optional.empty(), problems);
         }
 
+        List<Diagnostic> warnings = new ArrayList<>();
         StringBuilder out = new StringBuilder();
         out.append("pcml: ").append(YamlText.scalar(pcmlFileName)).append('\n');
         out.append("version: 0.1.0\n");
@@ -100,12 +120,76 @@ public final class OverlayScaffold {
             out.append("    method: POST\n");
             if (!program.parameters().isEmpty()) {
                 out.append("    parameters:\n");
+                int threshold = largeArrayThreshold;
+                LimitInfo overLimit = null;
+                long guaranteed = guaranteedResponseValues(program, pcml, largeArrayThreshold);
+                if (guaranteed > maxResponseValues) {
+                    threshold = 0; // every fixed response array gets a trim, not only those at or above the threshold
+                    overLimit = new LimitInfo(guaranteed, maxResponseValues);
+                    long stillGuaranteed = guaranteedResponseValues(program, pcml, 0);
+                    if (stillGuaranteed > maxResponseValues) {
+                        warnings.add(new Diagnostic("SCF004", Severity.WARNING,
+                                "Operation '" + id + "': even trimmed everywhere it can be, the response always has at least "
+                                        + stillGuaranteed + " values, more than the limit of " + maxResponseValues
+                                        + "; a count field narrows it further than 'dropBlank' can, or raise 'defaults.maxResponseValues'",
+                                program.source()));
+                    }
+                }
                 for (FieldDef parameter : program.parameters()) {
-                    writeParameter(out, "      ", parameter, pcml, largeArrayThreshold);
+                    writeParameter(out, "      ", parameter, pcml, threshold, overLimit);
                 }
             }
         }
-        return new ScaffoldResult(Optional.of(out.toString()), List.of());
+        return new ScaffoldResult(Optional.of(out.toString()), warnings);
+    }
+
+    /** What makes {@code init} switch from trimming only large arrays to trimming every fixed array, and why. */
+    private record LimitInfo(long guaranteed, int maxResponseValues) {
+    }
+
+    /**
+     * What the operation's response always has, at least, the same sum {@code OVL022} uses (kickoff 15, Part D,
+     * decision 127): shared through {@link ResponseValueSum}, read here from the plain PCML field tree (there is no
+     * overlay yet) with {@code threshold} standing in for the trim {@code init} would write at that threshold — 0
+     * stands for "every fixed array", the same way it does in {@link #writeField} and {@link #needsTrim}.
+     */
+    private static long guaranteedResponseValues(ProgramDef program, PcmlDocument pcml, int threshold) {
+        List<ResponseValueSum.Field> fields = new ArrayList<>();
+        for (FieldDef parameter : program.parameters()) {
+            fields.add(sumField(parameter, pcml, threshold, parameter.usage() != Usage.INPUT));
+        }
+        return ResponseValueSum.total(fields);
+    }
+
+    private static ResponseValueSum.Field sumField(FieldDef field, PcmlDocument pcml, int threshold, boolean responseEligible) {
+        return new ResponseValueSum.Field() {
+            @Override
+            public boolean countsTowardTheLimit() {
+                return responseEligible;
+            }
+
+            @Override
+            public boolean hasTrim() {
+                return threshold >= 0 && field.count() instanceof Count.Fixed fixed && fixed.value() >= threshold;
+            }
+
+            @Override
+            public int fixedCount() {
+                return field.count() instanceof Count.Fixed fixed ? fixed.value() : -1;
+            }
+
+            @Override
+            public List<ResponseValueSum.Field> children() {
+                if (!(field.wire() instanceof WireType.Struct struct)) {
+                    return List.of();
+                }
+                StructDef definition = pcml.structs().get(struct.structName());
+                if (definition == null) {
+                    return List.of();
+                }
+                return definition.fields().stream().map(member -> sumField(member, pcml, threshold, responseEligible)).toList();
+            }
+        };
     }
 
     /** A parameter the loader reports {@code OVL001} for while there is no direction. */
@@ -122,20 +206,23 @@ public final class OverlayScaffold {
      * {@link OverlayEditor}'s block-editing path, which now removes it from there the same way it already did for
      * the flat form).
      */
-    private static void writeParameter(StringBuilder out, String indent, FieldDef parameter, PcmlDocument pcml, int threshold) {
+    private static void writeParameter(StringBuilder out, String indent, FieldDef parameter, PcmlDocument pcml, int threshold,
+                                        LimitInfo overLimit) {
         String exposedName = OverlayText.exposedName(parameter.name());
         String comment = needsDirection(parameter) ? INPUTOUTPUT_COMMENT : null;
         int eligible = parameter.usage() == Usage.INPUT ? -1 : threshold;
-        writeField(out, indent, parameter, pcml, eligible, exposedName, comment);
+        writeField(out, indent, parameter, pcml, eligible, exposedName, comment, overLimit);
     }
 
     /**
      * Writes a parameter or struct member, in flat or block form. {@code threshold} is negative when trim is never
-     * considered for this field or anything under it (the request side). {@code trailingComment} trails the
-     * {@code name:} line when not {@code null}; only a top-level parameter ever has one.
+     * considered for this field or anything under it (the request side); it is 0 when {@code overLimit} is not
+     * {@code null} (kickoff 15, Part D), so that every fixed array gets a trim, not only those at or above the
+     * large-array threshold. {@code trailingComment} trails the {@code name:} line when not {@code null}; only a
+     * top-level parameter ever has one.
      */
     private static void writeField(StringBuilder out, String indent, FieldDef field, PcmlDocument pcml, int threshold,
-                                    String exposedName, String trailingComment) {
+                                    String exposedName, String trailingComment, LimitInfo overLimit) {
         boolean ownLarge = threshold >= 0 && field.count() instanceof Count.Fixed fixed && fixed.value() >= threshold;
         List<FieldDef> membersToWrite = List.of();
         if (threshold >= 0 && field.wire() instanceof WireType.Struct struct) {
@@ -168,8 +255,14 @@ public final class OverlayScaffold {
         out.append('\n');
         if (ownLarge) {
             int n = ((Count.Fixed) field.count()).value();
-            out.append(inner).append("# this array declares ").append(n).append(" elements (>= the large-array threshold, ")
-                    .append(threshold).append("); trim drops the blank trailing ones so a call returns only the filled part.\n");
+            if (overLimit == null) {
+                out.append(inner).append("# this array declares ").append(n).append(" elements (>= the large-array threshold, ")
+                        .append(threshold).append("); trim drops the blank trailing ones so a call returns only the filled part.\n");
+            } else {
+                out.append(inner).append("# the response of this operation would otherwise always have at least ").append(overLimit.guaranteed())
+                        .append(" values, more than the limit of ").append(overLimit.maxResponseValues())
+                        .append("; trim drops the blank trailing ones so a call returns only the filled part.\n");
+            }
             out.append(inner).append("# If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.\n");
             out.append(inner).append("trim:\n");
             out.append(inner).append("  dropBlank: true\n");
@@ -177,7 +270,7 @@ public final class OverlayScaffold {
         if (!membersToWrite.isEmpty()) {
             out.append(inner).append("fields:\n");
             for (FieldDef member : membersToWrite) {
-                writeField(out, inner + "  ", member, pcml, threshold, OverlayText.exposedName(member.name()), null);
+                writeField(out, inner + "  ", member, pcml, threshold, OverlayText.exposedName(member.name()), null, overLimit);
             }
         }
     }

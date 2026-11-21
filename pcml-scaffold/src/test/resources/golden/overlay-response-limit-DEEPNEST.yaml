@@ -1,0 +1,68 @@
+pcml: DEEPNEST.pcml
+version: 0.1.0
+title: DEEPNEST
+operations:
+  - id: deepio
+    program: DEEPIO
+    route: /deepio
+    method: POST
+    parameters:
+      DEEP:
+        name: deep  # inputoutput: run annotate, or add direction: request | response | both | internal
+        # the response of this operation would otherwise always have at least 180000 values, more than the limit of 100000; trim drops the blank trailing ones so a call returns only the filled part.
+        # If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.
+        trim:
+          dropBlank: true
+        fields:
+          ITEMS:
+            name: items
+            # the response of this operation would otherwise always have at least 180000 values, more than the limit of 100000; trim drops the blank trailing ones so a call returns only the filled part.
+            # If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.
+            trim:
+              dropBlank: true
+            fields:
+              ITEMS:
+                name: items
+                # the response of this operation would otherwise always have at least 180000 values, more than the limit of 100000; trim drops the blank trailing ones so a call returns only the filled part.
+                # If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.
+                trim:
+                  dropBlank: true
+                fields:
+                  ITEMS:
+                    name: items
+                    # the response of this operation would otherwise always have at least 180000 values, more than the limit of 100000; trim drops the blank trailing ones so a call returns only the filled part.
+                    # If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.
+                    trim:
+                      dropBlank: true
+  - id: deepout
+    program: DEEPOUT
+    route: /deepout
+    method: POST
+    parameters:
+      DEEP:
+        name: deep
+        # the response of this operation would otherwise always have at least 180000 values, more than the limit of 100000; trim drops the blank trailing ones so a call returns only the filled part.
+        # If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.
+        trim:
+          dropBlank: true
+        fields:
+          ITEMS:
+            name: items
+            # the response of this operation would otherwise always have at least 180000 values, more than the limit of 100000; trim drops the blank trailing ones so a call returns only the filled part.
+            # If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.
+            trim:
+              dropBlank: true
+            fields:
+              ITEMS:
+                name: items
+                # the response of this operation would otherwise always have at least 180000 values, more than the limit of 100000; trim drops the blank trailing ones so a call returns only the filled part.
+                # If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.
+                trim:
+                  dropBlank: true
+                fields:
+                  ITEMS:
+                    name: items
+                    # the response of this operation would otherwise always have at least 180000 values, more than the limit of 100000; trim drops the blank trailing ones so a call returns only the filled part.
+                    # If the program has a count field for it, 'trim: { countField: <name> }' is the better rule.
+                    trim:
+                      dropBlank: true
