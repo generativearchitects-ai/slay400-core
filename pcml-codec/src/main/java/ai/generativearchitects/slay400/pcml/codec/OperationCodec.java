@@ -129,7 +129,11 @@ public final class OperationCodec {
     /**
      * A count field must exist, be a single value, and be read as a whole number. {@code scope} is where it is
      * looked up: the program's parameters for a top-level array (whose own scope is the top scope already), or the
-     * struct value that holds the array for a member (kickoff 15, Part B, decision 124).
+     * struct value that holds the array for a member (kickoff 15, Part B, decision 124). A field whose wire type is
+     * {@code int}, or {@code packed}/{@code zoned} with no decimal places, is a whole number whatever its semantic
+     * type (kickoff 15, review of PR #21, "to change" #2): a count declared {@code packed(3:0)} defaults to
+     * {@code DECIMAL} like any other packed field, but is still read as a count. A field with decimal places, or any
+     * other wire type whose semantic type is not {@code INTEGER}, is refused.
      */
     private static void checkCountField(String path, String what, FieldPlan array, FieldPlan.Scope scope,
                                         List<ConfigurationIssue> issues) {
@@ -137,8 +141,11 @@ public final class OperationCodec {
         String at = array.binding.fieldPath();
         if (found == null) {
             issues.add(new ConfigurationIssue(at, what + " cannot be found"));
-        } else if (found.plan().isStruct() || found.plan().isArray()
-                || found.plan().binding.semanticType().orElse(null) != SemanticType.INTEGER) {
+            return;
+        }
+        boolean wholeNumber = found.plan().binding.semanticType().orElse(null) == SemanticType.INTEGER
+                || WireType.isWholeNumber(found.plan().field.wire());
+        if (found.plan().isStruct() || found.plan().isArray() || !wholeNumber) {
             issues.add(new ConfigurationIssue(at, what + " is not a whole number"));
         }
     }

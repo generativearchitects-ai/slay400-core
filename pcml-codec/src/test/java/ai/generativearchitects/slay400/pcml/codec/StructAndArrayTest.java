@@ -288,6 +288,17 @@ class StructAndArrayTest {
         assertThat(((ApiValue.Arr) r.response().orElseThrow().get("rows")).elements()).hasSize(1);
     }
 
+    /** Review of PR #21, "to change" #2: a packed or zoned count with no decimal places is read as a whole number
+     *  even though it defaults to DECIMAL, not INTEGER. Parameter-level: {@link #theMemberCountFieldMayBeAWholeNumberWireTypeWithoutTypeInteger}. */
+    @Test
+    void aParameterCountFieldMayBeAWholeNumberWireTypeWithoutTypeInteger() {
+        Ops.F f = field("N", new WireType.Packed(3, 0)).internal();
+        DecodeResult r = codec(f, rows(3).trimCount("N")).decode(List.of(new WireValue.Decimal(new java.math.BigDecimal("2")),
+                a(row("a", 1), row("b", 2), row("c", 3))));
+        assertThat(r.problems()).isEmpty();
+        assertThat(((ApiValue.Arr) r.response().orElseThrow().get("rows")).elements()).hasSize(2);
+    }
+
     // ---- trim.dropBlank
 
     @Test
@@ -442,6 +453,16 @@ class StructAndArrayTest {
         DecodeResult r = codec(f).decode(List.of(s(i(1), a(t("a"), t("b")))));
         assertThat(r.problems()).isEmpty();
         assertThat(r.response().orElseThrow().get("s")).isEqualTo(obj("t", arr(text("a"))));
+    }
+
+    /** Review of PR #21, "to change" #2, at the member level (see also the parameter-level
+     *  {@link #aParameterCountFieldMayBeAWholeNumberWireTypeWithoutTypeInteger}). */
+    @Test
+    void theMemberCountFieldMayBeAWholeNumberWireTypeWithoutTypeInteger() {
+        Ops.F f = struct("S", field("N", new WireType.Zoned(3, 0)), field("T", chr(1)).count(2).trimCount("N")).response();
+        DecodeResult r = codec(f).decode(List.of(s(new WireValue.Decimal(new java.math.BigDecimal("1")), a(t("a"), t("b")))));
+        assertThat(r.problems()).isEmpty();
+        assertThat(r.response().orElseThrow().get("s")).isEqualTo(obj("n", decimal("1"), "t", arr(text("a"))));
     }
 
     @Test

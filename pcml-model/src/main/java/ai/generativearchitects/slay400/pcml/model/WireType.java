@@ -131,4 +131,19 @@ public sealed interface WireType {
     static boolean isRawBytes(Optional<Integer> ccsid) {
         return ccsid.isPresent() && ccsid.get() == 65535;
     }
+
+    /**
+     * Whether a wire type's value is always a whole number: {@code int}, or {@code packed}/{@code zoned} with no
+     * decimal places. A count field of this wire type is read as a whole number whatever its semantic type
+     * (kickoff 15, review of PR #21, "to change" #2): a count is often a {@code packed} field with no decimals,
+     * which defaults to {@code DECIMAL} like any other packed field.
+     */
+    static boolean isWholeNumber(WireType wire) {
+        return switch (wire) {
+            case Int i -> true;
+            case Packed p -> p.precision() == 0;
+            case Zoned z -> z.precision() == 0;
+            default -> false;
+        };
+    }
 }

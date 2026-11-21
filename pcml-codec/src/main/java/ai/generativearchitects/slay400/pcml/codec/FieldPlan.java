@@ -405,11 +405,18 @@ final class FieldPlan {
         Problems own = new Problems();
         Optional<ApiValue> read = found.value() instanceof WireValue.Blank ? Optional.empty()
                 : found.plan().scalar.decode(found.value(), where, own);
-        if (read.isEmpty() || !(read.get() instanceof ApiValue.Integer count)) {
+        BigInteger n;
+        // A whole-number count field (kickoff 15, review of PR #21, "to change" #2) may decode as ApiValue.Decimal
+        // when its semantic type is the DECIMAL every packed or zoned field defaults to; OperationCodec.check has
+        // already refused one with decimal places, so its value is always a whole number here.
+        if (read.isPresent() && read.get() instanceof ApiValue.Integer count) {
+            n = count.value();
+        } else if (read.isPresent() && read.get() instanceof ApiValue.Decimal decimal && decimal.value().scale() <= 0) {
+            n = decimal.value().toBigIntegerExact();
+        } else {
             problems.add("VAL103", where, "The field that holds the number of elements is not a number");
             return Optional.empty();
         }
-        BigInteger n = count.value();
         if (n.signum() < 0) {
             problems.add("VAL103", where, "The number of elements is negative");
             return Optional.empty();

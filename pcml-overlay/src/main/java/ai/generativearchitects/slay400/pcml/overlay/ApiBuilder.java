@@ -519,17 +519,7 @@ final class ApiBuilder {
             return false;
         }
         FieldDef found = siblings.stream().filter(f -> f.name().equals(name)).findFirst().orElse(null);
-        return found != null && found.count() instanceof Count.None && isWholeNumber(found.wire());
-    }
-
-    /** A wire type whose value is always a whole number: {@code int}, or {@code packed}/{@code zoned} with no decimals. */
-    private static boolean isWholeNumber(WireType wire) {
-        return switch (wire) {
-            case WireType.Int i -> true;
-            case WireType.Packed p -> p.precision() == 0;
-            case WireType.Zoned z -> z.precision() == 0;
-            default -> false;
-        };
+        return found != null && found.count() instanceof Count.None && WireType.isWholeNumber(found.wire());
     }
 
     // ------------------------------------------------------------------ route, names
