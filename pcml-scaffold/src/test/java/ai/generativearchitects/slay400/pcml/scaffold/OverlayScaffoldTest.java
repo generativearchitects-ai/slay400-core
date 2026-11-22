@@ -306,6 +306,49 @@ class OverlayScaffoldTest {
         assertThat(text).contains("Y: { name: y }\n").doesNotContain("fields:").doesNotContain("trim:");
     }
 
+    // ---- kickoff 15, Part D: init and the response limit (decision 127)
+
+    @Test
+    void justUnderTheLimitIsUnchangedAndJustOverGetsTrimOnEveryFixedArray() {
+        // 10 elements of 3 one-character fields: 30 guaranteed values, well under the large-array threshold (100).
+        String pcml = "<pcml version=\"6.0\"><struct name=\"ROW\"><data name=\"A\" type=\"char\" length=\"1\"/>"
+                + "<data name=\"B\" type=\"char\" length=\"1\"/><data name=\"C\" type=\"char\" length=\"1\"/></struct>"
+                + "<program name=\"P\" path=\"/Q\"><data name=\"Y\" type=\"struct\" struct=\"ROW\" count=\"10\" usage=\"output\"/></program></pcml>";
+        ScaffoldResult atLimit = OverlayScaffold.create("f", "A.pcml", Fixtures.document(pcml), 100, 30);
+        assertThat(atLimit.diagnostics()).isEmpty();
+        assertThat(atLimit.text().orElseThrow()).contains("    parameters:\n      Y: { name: y }\n");
+
+        ScaffoldResult overLimit = OverlayScaffold.create("f", "A.pcml", Fixtures.document(pcml), 100, 29);
+        assertThat(overLimit.diagnostics()).isEmpty();
+        assertThat(overLimit.text().orElseThrow()).contains("trim:\n").contains("dropBlank: true\n")
+                .contains("the response of this operation would otherwise always have at least 30 values, more than the limit of 29");
+    }
+
+    @Test
+    void aResponseThatStaysOverTheLimitAfterTrimmingEveryArrayGetsScf004() {
+        // Three plain scalars: trim does not apply to them, so nothing init writes can bring the total down.
+        String pcml = "<pcml version=\"6.0\"><program name=\"P\" path=\"/Q\">"
+                + "<data name=\"A\" type=\"char\" length=\"1\" usage=\"output\"/>"
+                + "<data name=\"B\" type=\"char\" length=\"1\" usage=\"output\"/>"
+                + "<data name=\"C\" type=\"char\" length=\"1\" usage=\"output\"/></program></pcml>";
+        ScaffoldResult result = OverlayScaffold.create("f", "A.pcml", Fixtures.document(pcml), 100, 2);
+        assertThat(result.text()).isPresent();
+        assertThat(result.diagnostics()).extracting(Diagnostic::code, Diagnostic::severity)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("SCF004", Severity.WARNING));
+        assertThat(result.diagnostics().get(0).message()).contains("'p'").contains("at least 3 values, more than the limit of 2");
+    }
+
+    @Test
+    void aRequestOnlyParameterIsNeverForcedEvenWhenTheResponseIsOverTheLimit() {
+        // X is request-only and does not count toward the limit or get a trim even when A does.
+        String pcml = "<pcml version=\"6.0\"><program name=\"P\" path=\"/Q\">"
+                + "<data name=\"X\" type=\"char\" length=\"2\" count=\"5\" usage=\"input\"/>"
+                + "<data name=\"A\" type=\"char\" length=\"1\" usage=\"output\"/>"
+                + "<data name=\"B\" type=\"char\" length=\"1\" usage=\"output\"/></program></pcml>";
+        ScaffoldResult result = OverlayScaffold.create("f", "A.pcml", Fixtures.document(pcml), 100, 1);
+        assertThat(result.text().orElseThrow()).contains("X: { name: x }\n");
+    }
+
     // ---- golden files and determinism
 
     @Test
@@ -316,7 +359,7 @@ class OverlayScaffoldTest {
 
     @Test
     void goldenFiles() {
-        for (String label : List.of("inputoutput/UPDQTY", "kitchen-sink/CATALOG", "large-arrays/BIGGRID")) {
+        for (String label : List.of("inputoutput/UPDQTY", "kitchen-sink/CATALOG", "large-arrays/BIGGRID", "response-limit/DEEPNEST")) {
             Fixtures.Api api = Fixtures.apis().stream().filter(a -> a.label().equals(label)).findFirst().orElseThrow();
             String file = api.pcml().getFileName().toString();
             ScaffoldResult result = OverlayScaffold.create(api.folder(), file, Fixtures.parse(file, Fixtures.read(api.pcml())).document().orElseThrow());

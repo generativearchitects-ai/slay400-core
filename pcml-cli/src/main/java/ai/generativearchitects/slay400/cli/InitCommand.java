@@ -100,7 +100,7 @@ final class InitCommand implements Command {
             return Optional.empty();
         }
         ScaffoldResult result = OverlayScaffold.create(folder, pcml.getFileName().toString(), parsed.document().get(),
-                GatewayDefaults.standard().largeArrayThreshold());
+                GatewayDefaults.standard().largeArrayThreshold(), GatewayDefaults.standard().maxResponseValues());
         context.diagnostics.addAll(result.diagnostics());
         return result.text();
     }

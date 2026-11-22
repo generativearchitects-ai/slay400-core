@@ -10,6 +10,7 @@ import ai.generativearchitects.slay400.pcml.codec.ConfigurationIssue;
 import ai.generativearchitects.slay400.pcml.codec.MockCodec;
 import ai.generativearchitects.slay400.pcml.codec.MockProblem;
 import ai.generativearchitects.slay400.pcml.codec.OperationCodec;
+import ai.generativearchitects.slay400.pcml.codec.ResponseValueSum;
 import ai.generativearchitects.slay400.pcml.diagnostics.Diagnostic;
 import ai.generativearchitects.slay400.pcml.diagnostics.Severity;
 import ai.generativearchitects.slay400.pcml.model.Count;
@@ -62,10 +63,7 @@ public final class Validator {
             for (FieldBinding binding : operation.bindings()) {
                 collectLargeArrayWarnings(operation, binding, model.defaults().largeArrayThreshold(), diagnostics);
             }
-            long guaranteed = 0;
-            for (FieldBinding binding : operation.bindings()) {
-                guaranteed = saturatingAdd(guaranteed, guaranteedResponseValueCount(binding));
-            }
+            long guaranteed = ResponseValueSum.total(operation.bindings().stream().map(Validator::asSumField).toList());
             if (guaranteed > model.defaults().maxResponseValues()) {
                 diagnostics.add(new Diagnostic("OVL022", Severity.ERROR,
                         "Operation " + operation.id() + ": the response always has at least " + guaranteed
@@ -126,44 +124,34 @@ public final class Validator {
     }
 
     /**
-     * {@code OVL022}: the number of scalar values a response is guaranteed to hold on every call, assuming every array
-     * that carries a {@code trim} anywhere on the way down to it shrinks to nothing (the opposite, most favourable
-     * case for the limit). A {@code Count.Ref} array is bounded by another field at run time, so it is excluded the
-     * same way {@link #isLargeResponseArrayWithoutTrim} excludes it from {@code OVL005}.
+     * {@code OVL022}'s view of a {@link FieldBinding} for {@link ResponseValueSum}: a hidden field is skipped while
+     * decoding ({@code FieldPlan.decodeElement}), so it never costs a value either, and a {@code Count.Ref} array is
+     * bounded by another field at run time, excluded the same way {@link #isLargeResponseArrayWithoutTrim} excludes
+     * it from {@code OVL005}.
      */
-    private static long guaranteedResponseValueCount(FieldBinding binding) {
-        boolean response = binding.direction() == Direction.RESPONSE || binding.direction() == Direction.BOTH;
-        // A hidden field is skipped while decoding (FieldPlan.decodeElement), so it never costs a value either.
-        if (!response || binding.hidden() || binding.trim().isPresent() || binding.field().count() instanceof Count.Ref) {
-            return 0;
-        }
-        long multiplier = binding.field().count() instanceof Count.Fixed fixed ? fixed.value() : 1;
-        if (binding.children().isEmpty()) {
-            return multiplier;
-        }
-        long perElement = 0;
-        for (FieldBinding child : binding.children()) {
-            perElement = saturatingAdd(perElement, guaranteedResponseValueCount(child));
-        }
-        return saturatingMultiply(multiplier, perElement);
-    }
+    private static ResponseValueSum.Field asSumField(FieldBinding binding) {
+        return new ResponseValueSum.Field() {
+            @Override
+            public boolean countsTowardTheLimit() {
+                boolean response = binding.direction() == Direction.RESPONSE || binding.direction() == Direction.BOTH;
+                return response && !binding.hidden() && !(binding.field().count() instanceof Count.Ref);
+            }
 
-    /** {@code OVL022}'s guaranteed count, saturating at {@link Long#MAX_VALUE} instead of overflowing for a
-     *  declared size deep or wide enough to wrap a {@code long} negative. */
-    private static long saturatingAdd(long a, long b) {
-        try {
-            return Math.addExact(a, b);
-        } catch (ArithmeticException overflow) {
-            return Long.MAX_VALUE;
-        }
-    }
+            @Override
+            public boolean hasTrim() {
+                return binding.trim().isPresent();
+            }
 
-    private static long saturatingMultiply(long a, long b) {
-        try {
-            return Math.multiplyExact(a, b);
-        } catch (ArithmeticException overflow) {
-            return Long.MAX_VALUE;
-        }
+            @Override
+            public int fixedCount() {
+                return binding.field().count() instanceof Count.Fixed fixed ? fixed.value() : -1;
+            }
+
+            @Override
+            public List<ResponseValueSum.Field> children() {
+                return binding.children().stream().map(Validator::asSumField).toList();
+            }
+        };
     }
 
     private static String describe(ApiOperation operation, ConfigurationIssue issue) {
