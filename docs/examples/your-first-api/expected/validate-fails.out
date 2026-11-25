@@ -1,0 +1,2 @@
+apis/ORDSTATUS/api.yaml:7:12: error OVL012: 'route' must start with '/': 'ordstatus'
+1 error, 0 warnings, 0 notes

@@ -1,0 +1,1 @@
+The CRTBNDRPG command that compiles the shop's invented `ORDSTATUS` program with `PGMINFO(*PCML)`, so that the compiler writes its PCML. Needs a real IBM i (`# requires: ibmi`); not run by `docs:examples`. Used by the Guides "Get PCML from the compiler" page.

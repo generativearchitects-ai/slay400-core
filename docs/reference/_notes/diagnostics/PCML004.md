@@ -1,0 +1,1 @@
+**Meaning:** the `<pcml>` root element has no `version` attribute, which every PCML document must have. **What to do:** add `version="6.0"` (or the version the compiler actually wrote) to the `<pcml>` element.

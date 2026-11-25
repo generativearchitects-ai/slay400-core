@@ -1,0 +1,1 @@
+**Meaning:** a field's `count` or `length` attribute (PCML's way of saying "this many elements" or "this many bytes, from that field") names another field that PCML cannot find in the same scope. **What to do:** check the referenced field's name and that it is declared in the same struct or program.

@@ -1,0 +1,4 @@
+slay400 <version> installed in <workdir>/_home/.slay400/<version>
+Add this to your shell profile, or run it in your current shell:
+  export PATH="<workdir>/_home/.slay400/bin:$PATH"
+Then check with: slay400 --version
