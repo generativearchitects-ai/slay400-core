@@ -10,12 +10,14 @@ repository root (default: the parent of this script's folder). --signed also req
 What is checked (kickoff 12), for the root pom and every module of the root pom:
   * exactly these artifacts are staged, with the project version, and nothing else (no test jar, no unknown file; the checksum
     files that the plugin adds for a release are ignored);
-  * the POM, and for a module that is not a pom also the jar, the sources jar and the Javadoc jar;
+  * the POM, and for a module that is not a pom also the jar, the sources jar and the Javadoc jar (kickoff 17:
+    pcml-launcher is a pom whose artifacts are its two distribution archives, tar.gz and zip, instead);
   * the POM has what Maven Central requires: name, description, url, a licence, a developer, the source-control entries
     (as written in the module's own POM or, if it has none, in its parent's, which is published in the same deployment);
   * every jar has META-INF/LICENSE and META-INF/NOTICE;
   * the jar of pcml-cli is the runnable one: a Main-Class, and its dependencies inside;
-  * pcml-bom lists exactly the published modules, with the project version.
+  * pcml-bom lists exactly the published modules that are depended on from Java, with the project version
+    (not itself, not pcml-launcher).
 
 Needs Python 3 and nothing else. Exit code 0: all good; 1: problems, one per line. No file is written or changed.
 """
@@ -30,6 +32,9 @@ NS = "{http://maven.apache.org/POM/4.0.0}"
 ROOT = "slay400-core"
 BOM = "pcml-bom"
 CLI = "pcml-cli"
+# The distribution archive (kickoff 17): packaging pom, but its artifacts are the two archives, not a jar; nobody
+# depends on it from Java, so it is not managed by pcml-bom.
+ARCHIVE = "pcml-launcher"
 # Checksum files that the publishing plugin adds when it stages a release; they are its business, not a published artifact.
 CHECKSUM_SUFFIXES = (".md5", ".sha1", ".sha256", ".sha512")
 # The classes that show that the dependencies of the command-line tool are inside its jar.
@@ -123,7 +128,7 @@ def bom_problems(bom_pom, modules, version):
         expected_type = "maven-plugin" if artifact == "pcml-maven-plugin" else None
         if text(dep, "type") != expected_type:
             problems.append(f"{BOM} lists {artifact} with type {text(dep, 'type')}, expected {expected_type}")
-    wanted = [m for m in modules if m != BOM]
+    wanted = [m for m in modules if m not in (BOM, ARCHIVE)]
     for missing in sorted(set(wanted) - set(managed)):
         problems.append(f"{BOM} does not list the module {missing}")
     for extra in sorted(set(managed) - set(wanted)):
@@ -163,7 +168,9 @@ def check(staging, repo, signed=False):
         is_pom_packaging = artifact in (ROOT, BOM)
 
         expected = {f"{artifact}-{version}.pom"}
-        if not is_pom_packaging:
+        if artifact == ARCHIVE:
+            expected |= {f"{artifact}-{version}.tar.gz", f"{artifact}-{version}.zip"}
+        elif not is_pom_packaging:
             expected |= {f"{artifact}-{version}.jar", f"{artifact}-{version}-sources.jar", f"{artifact}-{version}-javadoc.jar"}
         present = {p.name for p in folder.iterdir()
                    if p.is_file() and not p.name.startswith("maven-metadata") and not p.name.endswith(CHECKSUM_SUFFIXES)}
