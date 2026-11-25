@@ -16,15 +16,16 @@ trap 'rm -rf "$work"' EXIT
 # The same arguments as the CI job that checks the files (scripts/check_staged_artifacts.py): no tests, no signature, no upload.
 build() {
   ./mvnw -B -q -Prelease -Dgpg.skip=true -DskipUpload=true -DskipTests -Dinvoker.skip=true clean deploy
-  # A snapshot is staged in central-deferred, a release in central-staging.
+  # A snapshot is staged in central-deferred, a release in central-staging; the plugin leaves the other one behind
+  # too, empty, so the choice has to be the first one that actually holds a file, not the first that exists.
   local staged
   for staged in target/central-deferred target/central-staging; do
-    if [ -d "$staged" ]; then
+    if [ -d "$staged" ] && [ -n "$(find "$staged" -type f ! -name 'maven-metadata*' -print -quit)" ]; then
       (cd "$staged" && find . -type f ! -name 'maven-metadata*' -print0 | sort -z | xargs -0 sha256sum) > "$1"
       return
     fi
   done
-  echo "No staging folder in target/: the build did not stage anything." >&2
+  echo "No staging folder in target/ has a file: the build did not stage anything." >&2
   exit 1
 }
 

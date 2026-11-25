@@ -8,7 +8,7 @@
   <!-- Provisional coordinates: the groupId is declared once, here, and inherited by every module. -->
   <groupId>ai.generativearchitects.slay400</groupId>
   <artifactId>slay400-core</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0-alpha.1</version>
   <packaging>pom</packaging>
 
   <name>slay400-core</name>
@@ -75,7 +75,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <!-- Reproducible builds: the time stored in every jar and zip entry, so that two builds make the same bytes. -->
-    <project.build.outputTimestamp>2026-11-16T00:00:00Z</project.build.outputTimestamp>
+    <project.build.outputTimestamp>2026-11-25T16:15:50Z</project.build.outputTimestamp>
 
     <junit.version>5.11.4</junit.version>
     <assertj.version>3.27.3</assertj.version>
