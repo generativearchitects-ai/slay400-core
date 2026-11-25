@@ -87,7 +87,7 @@ gateway will, and `scripts/check-reproducible.sh` builds twice and compares the 
 ```
 ./mvnw install -DskipTests                  # an ordinary build first: it makes the test jars that some modules share
 ./mvnw -Prelease -Dgpg.skip=true -DskipUpload=true -DskipTests clean deploy
-python3 scripts/check_staged_artifacts.py target/central-deferred
+python3 scripts/check_staged_artifacts.py target/central-deferred   # target/central-staging instead, for a release version
 ```
 
 To set the version of a release in every POM, including `pcml-bom`: `./mvnw versions:set -DnewVersion=<version>
