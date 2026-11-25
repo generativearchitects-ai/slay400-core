@@ -19,8 +19,9 @@ class UsageTest {
 
     static Stream<Arguments> usageErrors() {
         return Stream.of(
-                Arguments.of(new String[] {}, "No command given"),
                 Arguments.of(new String[] {"frobnicate"}, "Unknown command 'frobnicate'"),
+                Arguments.of(new String[] {"help", "frobnicate"}, "Unknown command 'frobnicate'"),
+                Arguments.of(new String[] {"help", "validate", "extra"}, "Unexpected argument 'extra'"),
                 Arguments.of(new String[] {"--frobnicate"}, "Unknown option '--frobnicate'"),
                 Arguments.of(new String[] {"validate", "--frobnicate"}, "Unknown option '--frobnicate' for validate"),
                 Arguments.of(new String[] {"validate", "--out", "x"}, "Unknown option '--out' for validate"),
@@ -83,30 +84,40 @@ class UsageTest {
     }
 
     @Test
-    void theVersionIsTheNameAndTheVersionOfTheTool(@TempDir Path dir) {
-        Result result = Support.run(dir, "--version");
-        assertThat(result.exit()).isZero();
-        assertThat(result.out()).isEqualTo(Tool.NAME + " " + Tool.version() + "\n");
-        assertThat(result.err()).isEmpty();
+    void theVersionIsTheNameAndTheVersionOfTheToolForBothSpellings(@TempDir Path dir) {
+        for (String[] args : List.of(new String[] {"--version"}, new String[] {"version"})) {
+            Result result = Support.run(dir, args);
+            assertThat(result.exit()).as(args[0]).isZero();
+            assertThat(result.out()).as(args[0]).isEqualTo(Tool.NAME + " " + Tool.version() + "\n");
+            assertThat(result.err()).as(args[0]).isEmpty();
+        }
     }
 
     @Test
     void helpIsPrintedForTheToolAndForEachCommandAndNeedsNoRepository(@TempDir Path dir) {
-        Result general = Support.run(dir, "--help");
-        assertThat(general.exit()).isZero();
-        assertThat(general.out()).isEqualTo(Help.general()).startsWith("Usage: " + Tool.NAME + " <command> [options]");
-        assertThat(general.err()).isEmpty();
-        for (String command : List.of("init", "annotate", "validate", "generate", "bundle", "diff")) {
-            Result help = Support.run(dir, command, "--help");
+        for (String[] args : List.of(new String[] {"--help"}, new String[] {"help"}, new String[] {})) {
+            Result general = Support.run(dir, args);
+            assertThat(general.exit()).as(String.join(" ", args)).isZero();
+            assertThat(general.out()).as(String.join(" ", args)).isEqualTo(Help.general()).startsWith("Usage: " + Tool.NAME + " <command> [options]");
+            assertThat(general.err()).isEmpty();
+        }
+        for (String command : List.of("init", "annotate", "validate", "generate", "bundle", "diff", "gateway")) {
+            Result help = Support.run(dir, "help", command);
             assertThat(help.exit()).as(command).isZero();
-            assertThat(help.out()).isEqualTo(Help.of(command)).startsWith("Usage: " + Tool.NAME + " " + command);
+            assertThat(help.out()).as(command).isEqualTo(Help.of(command)).startsWith("Usage: " + Tool.NAME + " " + command);
             assertThat(help.err()).isEmpty();
-            assertThat(Support.run(dir, command, "--help", "--format", "json").out()).isEqualTo(Help.of(command));
+            if (!command.equals("gateway")) {
+                Result dashDash = Support.run(dir, command, "--help");
+                assertThat(dashDash.exit()).as(command).isZero();
+                assertThat(dashDash.out()).as(command).isEqualTo(Help.of(command));
+                assertThat(Support.run(dir, command, "--help", "--format", "json").out()).isEqualTo(Help.of(command));
+            }
         }
         assertThat(Support.run(dir, "generate", "--help").out()).contains("--out <dir>");
         assertThat(Support.run(dir, "bundle", "--help").out()).contains("--name <name>").contains("--source-revision");
         assertThat(Support.run(dir, "diff", "--help").out()).contains("--against <bundle file>");
-        assertThat(Help.general()).contains("validate").contains("generate").contains("bundle").contains("diff").contains("Exit codes:");
+        assertThat(Help.general()).contains("validate").contains("generate").contains("bundle").contains("diff").contains("gateway")
+                .contains("Exit codes:");
     }
 
     @Test
@@ -148,6 +159,11 @@ class UsageTest {
         assertThatThrownBy(() -> Cli.run(new String[0], Path.of("."), null, System.out, System.err)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Cli.run(new String[0], Path.of("."), System.in, null, System.err)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> Cli.run(new String[0], Path.of("."), System.in, System.out, null)).isInstanceOf(NullPointerException.class);
-        assertThat(List.of(Cli.OK, Cli.FAILED, Cli.USAGE, Cli.UNEXPECTED)).containsExactly(0, 1, 2, 3);
+        assertThatThrownBy(() -> Cli.run(null, Path.of("."), System.in, System.out, System.err, "")).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Cli.run(new String[0], null, System.in, System.out, System.err, "")).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Cli.run(new String[0], Path.of("."), null, System.out, System.err, "")).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Cli.run(new String[0], Path.of("."), System.in, null, System.err, "")).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Cli.run(new String[0], Path.of("."), System.in, System.out, null, "")).isInstanceOf(NullPointerException.class);
+        assertThat(List.of(Cli.OK, Cli.FAILED, Cli.USAGE, Cli.UNEXPECTED, Cli.GATEWAY_NOT_FOUND)).containsExactly(0, 1, 2, 3, 4);
     }
 }
