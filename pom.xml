@@ -65,6 +65,7 @@
     <module>pcml-http</module>
     <module>pcml-tasks</module>
     <module>pcml-cli</module>
+    <module>pcml-launcher</module>
     <module>pcml-maven-plugin</module>
     <module>pcml-bom</module>
   </modules>

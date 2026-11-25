@@ -77,6 +77,20 @@ final class Support {
         return new Result(exit, out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
     }
 
+    /** Runs with {@code path} as the PATH {@code gateway} looks in, instead of the real one (kickoff 17). */
+    static Result runOnPath(Path workingDirectory, String path, String... args) {
+        return runWithInputOnPath(workingDirectory, path, "", args);
+    }
+
+    /** {@link #runOnPath}, with standard input given as text. */
+    static Result runWithInputOnPath(Path workingDirectory, String path, String input, String... args) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        int exit = Cli.run(args, workingDirectory, new java.io.ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(out, true, StandardCharsets.UTF_8), new PrintStream(err, true, StandardCharsets.UTF_8), path);
+        return new Result(exit, out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
+    }
+
     /** A copy of a fixture repository on the real file system. */
     static Path repo(String fixture, Path target) {
         Path source = Fixtures.path(fixture);

@@ -7,20 +7,30 @@ import ai.generativearchitects.slay400.report.JsonReport;
 import ai.generativearchitects.slay400.report.Report;
 import ai.generativearchitects.slay400.report.SarifReport;
 import ai.generativearchitects.slay400.report.TextReport;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The command line, as a function: arguments in, exit code out. It never exits the process and reads no environment
- * variable. Only {@code annotate} reads the input stream. The report goes to the output stream or to the report file; everything else, usage, progress and
- * the files written, goes to the error stream, so that the output of a JSON or SARIF report is one document and nothing else.
+ * variable other than {@code PATH} (passed in explicitly, to find {@code slay400-gateway}; the five-argument
+ * overload of {@link #run} reads the real one as a convenience). Only {@code annotate} reads the input stream,
+ * except {@code gateway}, which also passes it through to the gateway. The report goes to the output stream or to
+ * the report file; everything else, usage, progress and the files written, goes to the error stream, so that the
+ * output of a JSON or SARIF report is one document and nothing else.
  */
 public final class Cli {
 
@@ -32,6 +42,13 @@ public final class Cli {
     public static final int USAGE = 2;
     /** An unexpected failure. */
     public static final int UNEXPECTED = 3;
+    /** {@code gateway}: {@code slay400-gateway} was not found on {@code PATH} (kickoff 17, decision 147). */
+    public static final int GATEWAY_NOT_FOUND = 4;
+
+    private static final String GATEWAY_COMMAND = "slay400-gateway";
+    private static final String GATEWAY_REPOSITORY_URL = "https://github.com/generativearchitects-ai/slay400";
+    /** How long {@code gateway} gives the child to stop on its own, and then to die, before giving up on waiting. */
+    private static final Duration GATEWAY_STOP_GRACE = Duration.ofSeconds(5);
 
     private static final Map<String, Command> COMMANDS = Map.of("init", new InitCommand(), "annotate", new AnnotateCommand(),
             "validate", new ValidateCommand(), "generate", new GenerateCommand(), "bundle", new BundleCommand(),
@@ -41,16 +58,32 @@ public final class Cli {
     }
 
     /**
-     * Runs a command line.
+     * Runs a command line, finding {@code slay400-gateway} on the real {@code PATH} environment variable.
      *
      * @param args             the arguments
      * @param workingDirectory what relative paths are relative to
-     * @param in               what {@code annotate} reads the answers from, one per line
+     * @param in               what {@code annotate} reads the answers from, one per line, and what {@code gateway} passes through
      * @param out              where the report, or the help and the version, are written
      * @param err              where everything else is written
      * @return the exit code
      */
     public static int run(String[] args, Path workingDirectory, InputStream in, PrintStream out, PrintStream err) {
+        return run(args, workingDirectory, in, out, err, System.getenv("PATH"));
+    }
+
+    /**
+     * Runs a command line.
+     *
+     * @param args             the arguments
+     * @param workingDirectory what relative paths are relative to
+     * @param in               what {@code annotate} reads the answers from, one per line, and what {@code gateway} passes through
+     * @param out              where the report, or the help and the version, are written
+     * @param err              where everything else is written
+     * @param path             where {@code gateway} looks for {@code slay400-gateway}: {@code PATH}-style, entries separated by
+     *                         {@link File#pathSeparator}; {@code null} or empty finds nothing
+     * @return the exit code
+     */
+    public static int run(String[] args, Path workingDirectory, InputStream in, PrintStream out, PrintStream err, String path) {
         Objects.requireNonNull(args, "args");
         Objects.requireNonNull(workingDirectory, "workingDirectory");
         Objects.requireNonNull(in, "in");
@@ -58,7 +91,7 @@ public final class Cli {
         Objects.requireNonNull(err, "err");
         boolean stacktrace = List.of(args).contains("--stacktrace");
         try {
-            return dispatch(List.of(args), workingDirectory, in, out, err);
+            return dispatch(List.of(args), workingDirectory, in, out, err, path);
         } catch (UsageException e) {
             err.println(Tool.NAME + ": " + e.getMessage() + ". Try '" + Tool.NAME + " --help'.");
             return USAGE;
@@ -71,18 +104,34 @@ public final class Cli {
         }
     }
 
-    private static int dispatch(List<String> args, Path workingDirectory, InputStream in, PrintStream out, PrintStream err) throws Exception {
+    private static int dispatch(List<String> args, Path workingDirectory, InputStream in, PrintStream out, PrintStream err, String path)
+            throws Exception {
         if (args.isEmpty()) {
-            throw new UsageException("No command given");
-        }
-        String first = args.get(0);
-        if (first.equals("--help")) {
             print(out, Help.general());
             return OK;
         }
-        if (first.equals("--version")) {
+        String first = args.get(0);
+        if (first.equals("--help") || first.equals("help") && args.size() == 1) {
+            print(out, Help.general());
+            return OK;
+        }
+        if (first.equals("--version") || first.equals("version")) {
             print(out, Tool.NAME + " " + Tool.version() + "\n");
             return OK;
+        }
+        if (first.equals("help")) {
+            if (args.size() > 2) {
+                throw new UsageException("Unexpected argument '" + Options.shown(args.get(2)) + "'");
+            }
+            String sub = args.get(1);
+            if (!Options.COMMANDS.contains(sub) && !sub.equals("gateway")) {
+                throw new UsageException("Unknown command '" + Options.shown(sub) + "'");
+            }
+            print(out, Help.of(sub));
+            return OK;
+        }
+        if (first.equals("gateway")) {
+            return runGateway(args.subList(1, args.size()), path, in, out, err);
         }
         if (!Options.COMMANDS.contains(first)) {
             throw new UsageException(first.startsWith("-") ? "Unknown option '" + Options.shown(first) + "'"
@@ -96,6 +145,125 @@ public final class Cli {
         Context context = new Context(options, workingDirectory, in, out, err);
         COMMANDS.get(first).run(context);
         return finish(context, first);
+    }
+
+    /**
+     * {@code gateway}: finds {@code slay400-gateway} on {@code path} and runs it with {@code arguments}, passing
+     * {@code in}, {@code out} and {@code err} through untouched and returning its exit status. The generator has no
+     * dependency on the gateway and does not install it (licence boundary, decision 147): when it is not found, says
+     * so in one sentence, with where its documentation is, and returns {@link #GATEWAY_NOT_FOUND}.
+     */
+    private static int runGateway(List<String> arguments, String path, InputStream in, PrintStream out, PrintStream err)
+            throws IOException, InterruptedException {
+        Optional<Path> found = findOnPath(GATEWAY_COMMAND, path);
+        if (found.isEmpty()) {
+            err.println(Tool.NAME + ": " + GATEWAY_COMMAND + " was not found on PATH. The gateway is installed separately; see "
+                    + GATEWAY_REPOSITORY_URL + " for its documentation.");
+            return GATEWAY_NOT_FOUND;
+        }
+        List<String> command = new ArrayList<>();
+        command.add(found.get().toString());
+        command.addAll(arguments);
+        Process process = new ProcessBuilder(command).start();
+        Thread input = pump(in, process.getOutputStream(), true);
+        Thread output = pump(process.getInputStream(), out, false);
+        Thread error = pump(process.getErrorStream(), err, false);
+        // So that stopping slay400 itself (a service manager's or a container's SIGTERM) stops the gateway too,
+        // instead of leaving it running without an owner: see stopGateway for what this can and cannot guarantee.
+        Thread stopHook = new Thread(() -> stopGateway(process));
+        Runtime.getRuntime().addShutdownHook(stopHook);
+        try {
+            int exit = process.waitFor();
+            output.join();
+            error.join();
+            out.flush();
+            err.flush();
+            input.interrupt();
+            return exit;
+        } finally {
+            try {
+                Runtime.getRuntime().removeShutdownHook(stopHook);
+            } catch (IllegalStateException ignored) {
+                // the JVM is already shutting down; stopHook runs (or already ran) on its own
+            }
+        }
+    }
+
+    /**
+     * Asks the gateway to stop and waits for it, bounded by {@link #GATEWAY_STOP_GRACE}, forcing it if it does not.
+     * Registered as a shutdown hook, so a SIGTERM to this process (a service manager's or a container's stop) runs
+     * it before the JVM actually exits.
+     *
+     * <p>On Windows, {@link Process#destroy()} is an immediate, unconditional kill (it calls {@code TerminateProcess};
+     * there is no graceful request to a process in the Win32 API the way {@code SIGTERM} is one on POSIX). This
+     * hook itself still runs for a graceful stop of slay400 there -- Ctrl+C, or {@code taskkill} without {@code /F}
+     * against a console application, both of which the JVM's own console control handler turns into an orderly
+     * shutdown -- but not for a hard kill ({@code taskkill /F}, or a service manager that escalates straight to
+     * it): nothing in the JVM runs then, on any platform, and the gateway is left running. Not made reliable on
+     * Windows for that reason; left as a known gap (kickoff 17 review).
+     */
+    // Package-visible, not private: so GatewayCommandTest can call it directly against a real stub process, without
+    // the unrelated unreliability of also sending an OS signal to a nested JVM to trigger it (see that test).
+    static void stopGateway(Process process) {
+        if (!process.isAlive()) {
+            return;
+        }
+        process.destroy();
+        try {
+            if (!process.waitFor(GATEWAY_STOP_GRACE.toMillis(), TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                process.waitFor(GATEWAY_STOP_GRACE.toMillis(), TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException e) {
+            process.destroyForcibly();
+        }
+    }
+
+    /** Copies bytes on a daemon thread until {@code from} ends; closes {@code to} then if {@code closeOnEnd}. */
+    private static Thread pump(InputStream from, OutputStream to, boolean closeOnEnd) {
+        Thread thread = new Thread(() -> {
+            try {
+                from.transferTo(to);
+            } catch (IOException ignored) {
+                // the process ended, or one of the streams closed
+            } finally {
+                if (closeOnEnd) {
+                    try {
+                        to.close();
+                    } catch (IOException ignored) {
+                        // nothing left to do with a stream that will not close
+                    }
+                }
+            }
+        });
+        thread.setDaemon(true);
+        thread.start();
+        return thread;
+    }
+
+    /** The names {@code name} may be installed under, most specific first, for the running platform. */
+    private static List<String> candidateNames(String name) {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        return os.contains("win") ? List.of(name + ".cmd", name + ".exe", name + ".bat", name) : List.of(name);
+    }
+
+    /** The first executable file named one of {@code name}'s platform candidates in one of {@code path}'s folders. */
+    private static Optional<Path> findOnPath(String name, String path) {
+        if (path == null || path.isEmpty()) {
+            return Optional.empty();
+        }
+        for (String folder : path.split(File.pathSeparator, -1)) {
+            if (folder.isEmpty()) {
+                continue;
+            }
+            for (String candidate : candidateNames(name)) {
+                Path file = Path.of(folder, candidate);
+                if (Files.isRegularFile(file) && Files.isExecutable(file)) {
+                    return Optional.of(file);
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /** Writes the report and decides the exit code. */

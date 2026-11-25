@@ -42,7 +42,10 @@ class StagedArtifactsTest(unittest.TestCase):
             source = REPO / "pom.xml" if artifact == checker.ROOT else REPO / artifact / "pom.xml"
             shutil.copy(source, folder / f"{artifact}-{VERSION}.pom")
             (folder / "maven-metadata-central-staging.xml").write_text("<metadata/>")
-            if artifact not in (checker.ROOT, checker.BOM):
+            if artifact == checker.ARCHIVE:
+                (folder / f"{artifact}-{VERSION}.tar.gz").write_bytes(b"tar.gz")
+                (folder / f"{artifact}-{VERSION}.zip").write_bytes(b"zip")
+            elif artifact not in (checker.ROOT, checker.BOM):
                 for suffix in ("", "-sources", "-javadoc"):
                     write_jar(folder / f"{artifact}-{VERSION}{suffix}.jar", cli=(artifact == checker.CLI and suffix == ""))
 
@@ -128,6 +131,14 @@ class StagedArtifactsTest(unittest.TestCase):
         text = (self.folder("pcml-model") / f"pcml-model-{VERSION}.pom").read_text()
         self.assertNotIn("<scm>", text)
         self.assertEqual([], self.problems())
+
+    def test_the_archive_module_is_a_pom_with_two_archives_instead_of_jars(self):
+        (self.folder(checker.ARCHIVE) / f"{checker.ARCHIVE}-{VERSION}.tar.gz").unlink()
+        self.assertEqual([f"{checker.ARCHIVE}: {checker.ARCHIVE}-{VERSION}.tar.gz is missing"], self.problems())
+
+    def test_the_bom_does_not_have_to_list_the_archive_module(self):
+        self.assertIn(checker.ARCHIVE, ARTIFACTS)
+        self.assertEqual([], self.problems())  # the archive module is not in pcml-bom's dependencyManagement; that is fine
 
     def test_the_bom_must_list_exactly_the_modules(self):
         self.edit_pom(checker.BOM, "<artifactId>pcml-mock</artifactId>", "<artifactId>pcml-mocks</artifactId>")

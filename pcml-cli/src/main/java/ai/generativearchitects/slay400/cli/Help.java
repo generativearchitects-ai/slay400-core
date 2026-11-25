@@ -21,6 +21,7 @@ final class Help {
               1  diagnostics at or above --fail-on
               2  usage error
               3  unexpected failure
+              4  (gateway only) slay400-gateway was not found on PATH
             """;
 
     private Help() {
@@ -28,7 +29,9 @@ final class Help {
 
     static String general() {
         return "Usage: " + Tool.NAME + " <command> [options]\n"
-                + "       " + Tool.NAME + " --version\n"
+                + "       " + Tool.NAME + " gateway <arguments>\n"
+                + "       " + Tool.NAME + " --version | version\n"
+                + "       " + Tool.NAME + " --help | help [<command>]\n"
                 + "\n"
                 + "Commands:\n"
                 + "  init       Write gateway.yaml and a first api.yaml for every PCML file that has none\n"
@@ -37,11 +40,12 @@ final class Help {
                 + "  generate   Run the emitters named in gateway.yaml and write their files\n"
                 + "  bundle     Pack the descriptor, the OpenAPI documents and the sources into one bundle file\n"
                 + "  diff       Compare the repository with a released bundle\n"
+                + "  gateway    Run slay400-gateway, found on PATH, with the given arguments\n"
                 + "\n"
                 + COMMON + "\n" + EXIT_CODES
                 + "\n"
                 + "The report goes to standard output or to --report; everything else goes to standard error.\n"
-                + "Run '" + Tool.NAME + " <command> --help' for the options of a command.\n";
+                + "Run '" + Tool.NAME + " help <command>' or '" + Tool.NAME + " <command> --help' for the options of a command.\n";
     }
 
     static String init() {
@@ -130,6 +134,15 @@ final class Help {
                 + "\n" + COMMON + "\n" + EXIT_CODES;
     }
 
+    static String gateway() {
+        return "Usage: " + Tool.NAME + " gateway <arguments>\n"
+                + "\n"
+                + "Runs slay400-gateway, found on PATH, with these arguments, and returns its exit status. The generator does not\n"
+                + "install the gateway or depend on it. If slay400-gateway is not found, says so and exits 4.\n"
+                + "\n"
+                + "See https://github.com/generativearchitects-ai/slay400 for the gateway's own documentation.\n";
+    }
+
     static String of(String command) {
         return switch (command) {
             case "init" -> init();
@@ -137,7 +150,9 @@ final class Help {
             case "validate" -> validate();
             case "generate" -> generate();
             case "bundle" -> bundle();
-            default -> diff();
+            case "diff" -> diff();
+            case "gateway" -> gateway();
+            default -> throw new IllegalArgumentException("No help for '" + command + "'");
         };
     }
 }

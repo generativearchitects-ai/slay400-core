@@ -28,6 +28,7 @@ Licence: Apache-2.0. The slay400 name and logo are not licensed under Apache-2.0
 | `pcml-mock` | Mock definitions (`apis/<FOLDER>/mock/<operation id>.yaml`): `MockProgram`, the evaluator that stands in for a program call between `encode` and `decode`; the `mock` emitter, which writes `mock/<api>.json` (`mockSchemaVersion` 1); and `MockReader`, which reads it back. No HTTP server and no sleeping: the delay is data |
 | `pcml-scaffold` | Writes a first `api.yaml` from PCML and the `gateway.yaml` of `init`, and edits parameter entries of an `api.yaml` in place (`direction`, `type`, `name`) without rewriting the file, checking the result by loading it again (`SCF001` to `SCF003`). Text in, text out: no I/O |
 | `pcml-cli` | The command-line tool: `init`, `annotate`, `validate`, `generate`, `bundle` and `diff`, in one runnable jar (`java -jar pcml-cli/target/pcml-cli-<version>.jar`) |
+| `pcml-launcher` | The `slay400` distribution archive (`.tar.gz` and `.zip`): `bin/slay400` and `bin/slay400.cmd`, wrapping `pcml-cli`'s jar unchanged (see "Install") |
 | `pcml-bundle` | Packs the descriptor, the OpenAPI documents and the PCML and overlay files into one deterministic, checksummed `.rpgapi` zip file, and reads it back as untrusted input (`BDL001` to `BDL006`) |
 | `pcml-emit-openapi` | Writes one OpenAPI 3.1 document per API, `openapi/<api name>.yaml` |
 | `pcml-http` | The HTTP binding, without a web framework: routes (`RouteTable`), reading a request into API values and writing the JSON response (`HttpBinding`), and RFC 9457 problem details (`ProblemDetails`), all agreeing with the OpenAPI document |
@@ -92,7 +93,44 @@ python3 scripts/check_staged_artifacts.py target/central-deferred
 To set the version of a release in every POM, including `pcml-bom`: `./mvnw versions:set -DnewVersion=<version>
 -DprocessAllModules=true -DgenerateBackupPoms=false`; `scripts/check_release_tag.py v<version>` checks the result.
 
+## Install
+
+Download and run the install script for your platform, which fetches a release archive from GitHub Releases, verifies
+its SHA-256 checksum, and unpacks it to `~/.slay400/<version>` (never with elevated rights, never editing a shell
+profile):
+
+```
+curl -fsSL https://raw.githubusercontent.com/generativearchitects-ai/slay400-core/main/install.sh | sh
+```
+
+```powershell
+iwr https://raw.githubusercontent.com/generativearchitects-ai/slay400-core/main/install.ps1 -OutFile install.ps1; .\install.ps1
+```
+
+Both scripts take an optional version and install folder (default: the latest release, and `~/.slay400`), and an
+`uninstall` option; run them with `--help` for details, or read `install.sh` / `install.ps1` directly, they are plain
+shell and PowerShell. At the end, each prints the line to add to `PATH` and how to check the install (`slay400 --version`).
+
+Or download and unpack the archive by hand: the `.tar.gz` or `.zip` of a version's
+[GitHub Release](https://github.com/generativearchitects-ai/slay400-core/releases), unpacked anywhere, with its `bin`
+folder on your `PATH`. Needs Java 21 or later, found from `JAVA_HOME` or `PATH`.
+
 ## Use
+
+```
+slay400 init        # gateway.yaml, and an api.yaml for every folder under apis/ that has PCML and no overlay
+slay400 annotate    # asks which way each inputoutput parameter goes, and writes the answers into api.yaml
+slay400 validate
+```
+
+`init` never overwrites or deletes a file. `annotate` changes only the parameter entries of an `api.yaml`: comments, blank
+lines, key order, quoting, indentation and line endings stay as they are.
+
+Without the launcher, the same commands run from the plain jar: `java -jar pcml-cli-<version>.jar init`.
+
+Operations with errors are left out of the model and reported. The JSON Schemas for editor completion are `api.schema.json` and `gateway.schema.json`, next to `OverlayLoader` in the `pcml-overlay` jar.
+
+### The library
 
 ```java
 ParseResult result = PcmlParser.parse(Path.of("MYPROGRAM.pcml"));
@@ -121,19 +159,6 @@ DecodeResult response = codec.decode(programOutput);                            
 The codec never alters data silently: nothing is truncated, rounded or clamped, and a value that does not fit is a problem
 whose message never contains the value. A char field's `length` counts bytes of the host encoding, so the codec supports
 single-byte CCSIDs only for now.
-
-From a folder of PCML files to a repository that validates, with the command-line tool:
-
-```
-java -jar pcml-cli-<version>.jar init        # gateway.yaml, and an api.yaml for every folder under apis/ that has PCML and no overlay
-java -jar pcml-cli-<version>.jar annotate    # asks which way each inputoutput parameter goes, and writes the answers into api.yaml
-java -jar pcml-cli-<version>.jar validate
-```
-
-`init` never overwrites or deletes a file. `annotate` changes only the parameter entries of an `api.yaml`: comments, blank
-lines, key order, quoting, indentation and line endings stay as they are.
-
-Operations with errors are left out of the model and reported. The JSON Schemas for editor completion are `api.schema.json` and `gateway.schema.json`, next to `OverlayLoader` in the `pcml-overlay` jar.
 
 ## Quality checks
 

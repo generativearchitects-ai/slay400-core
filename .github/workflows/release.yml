@@ -29,6 +29,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: release
+    # contents: write, in this job only (the workflow default above stays read): kickoff 17 attaches the two
+    # distribution archives to a draft GitHub Release of the tag, which needs it. Nothing else changes.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -90,3 +94,23 @@ jobs:
           MAVEN_GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: ./mvnw -B -Prelease -DskipTests -Dinvoker.skip=true clean deploy
+
+      # The archives pcml-launcher just built for Central carry its artifactId (pcml-launcher-<version>.tar.gz), the
+      # name every other published file follows; the GitHub Release asset a person downloads uses the product name
+      # instead (slay400-<version>.tar.gz), matching the archive's own top folder and install.sh / install.ps1,
+      # which download exactly that name. No secret is used: GH_TOKEN is the default token of this job.
+      - name: Draft a GitHub Release with the distribution archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir release-assets
+          for ext in tar.gz zip; do
+            cp "pcml-launcher/target/pcml-launcher-$version.$ext" "release-assets/slay400-$version.$ext"
+          done
+          (cd release-assets && for ext in tar.gz zip; do
+            sha256sum "slay400-$version.$ext" > "slay400-$version.$ext.sha256"
+          done)
+          gh release create "$GITHUB_REF_NAME" release-assets/* \
+            --draft --title "$GITHUB_REF_NAME" \
+            --notes "Draft release of $GITHUB_REF_NAME. Review the attached archives and the deployment in the Central Portal, then publish both by hand."

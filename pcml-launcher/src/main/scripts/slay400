@@ -1,0 +1,73 @@
+#!/bin/sh
+# The slay400 launcher (kickoff 17). Finds Java, resolves its own location through symbolic links so that a link
+# in a bin/ folder on PATH works, and runs the packaged jar with the given arguments, untouched. Reads JAVA_HOME,
+# PATH, JAVA_OPTS and SLAY400_OPTS; nothing else in the environment changes what it does. No network access, no
+# update check, no file written.
+set -eu
+
+# The real path of $1, following symbolic links one at a time (readlink -f is not on every platform this runs on).
+resolve() {
+  target="$1"
+  case "$target" in
+    /*) ;;
+    *) target="$(pwd -P)/$target" ;;
+  esac
+  while [ -L "$target" ]; do
+    link="$(readlink "$target")"
+    case "$link" in
+      /*) target="$link" ;;
+      *) target="$(dirname "$target")/$link" ;;
+    esac
+  done
+  dir="$(cd "$(dirname "$target")" && pwd -P)"
+  printf '%s/%s\n' "$dir" "$(basename "$target")"
+}
+
+# JAVA_HOME wins over PATH.
+find_java() {
+  if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    printf '%s\n' "$JAVA_HOME/bin/java"
+    return 0
+  fi
+  if command -v java >/dev/null 2>&1; then
+    command -v java
+    return 0
+  fi
+  return 1
+}
+
+# Not used by the tool itself for anything else (which uses 0-4): one documented value for "Java is missing or too old".
+NO_JAVA=70
+
+java_bin="$(find_java)" || {
+  echo "slay400: Java was not found (checked JAVA_HOME, then PATH); slay400 needs Java 21 or later." >&2
+  exit "$NO_JAVA"
+}
+
+# Not just the first line: when JAVA_TOOL_OPTIONS or _JAVA_OPTIONS is set (common in containers and CI images),
+# the JVM prints "Picked up JAVA_TOOL_OPTIONS: ..." before the version, even for an empty value.
+version_output="$("$java_bin" -version 2>&1)"
+version_line="$(printf '%s\n' "$version_output" | grep 'version "' | head -n 1)"
+[ -n "$version_line" ] || version_line="$(printf '%s\n' "$version_output" | head -n 1)"
+quoted=$(printf '%s\n' "$version_line" | sed -n 's/.*"\(.*\)".*/\1/p')
+case "$quoted" in
+  1.*) major=$(printf '%s\n' "$quoted" | cut -d. -f2) ;;
+  *) major=$(printf '%s\n' "$quoted" | cut -d. -f1) ;;
+esac
+case "$major" in
+  '' | *[!0-9]*)
+    echo "slay400: could not read a Java version from: $version_line" >&2
+    exit "$NO_JAVA"
+    ;;
+esac
+if [ "$major" -lt 21 ]; then
+  echo "slay400: found Java $quoted ($java_bin), but slay400 needs Java 21 or later." >&2
+  exit "$NO_JAVA"
+fi
+
+self="$(resolve "$0")"
+root="$(dirname "$(dirname "$self")")"
+
+# JAVA_OPTS and SLAY400_OPTS are deliberately unquoted: each may hold several space-separated JVM options.
+# shellcheck disable=SC2086
+exec "$java_bin" ${JAVA_OPTS:-} ${SLAY400_OPTS:-} -jar "$root/lib/"*.jar "$@"
