@@ -96,6 +96,11 @@ do_install() {
   version="$1"
   folder="$2"
   [ -n "$version" ] || version="$(latest_version)"
+  # Covers a version given on the command line and one read from the releases API (both end up here, in $version),
+  # before it is used to build a download address or a path: a stray "/" or ".." must not reach either.
+  case "$version" in
+    *[!A-Za-z0-9.+-]* | "") fail "'$version' does not look like a version (letters, digits, '.', '-', '+' only)" ;;
+  esac
 
   work="$(mktemp -d)"
   trap 'rm -rf "$work"' EXIT

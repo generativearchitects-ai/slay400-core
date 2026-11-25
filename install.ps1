@@ -87,6 +87,11 @@ function Install-Slay400([string]$Version, [string]$Folder) {
   if (-not $Version) {
     $Version = Get-LatestVersion
   }
+  # Covers a version given on the command line and one read from the releases API (both end up here, in $Version),
+  # before it is used to build a download address or a path: a stray "\" or ".." must not reach either.
+  if ($Version -notmatch '^[A-Za-z0-9.+-]+$') {
+    Fail "'$Version' does not look like a version (letters, digits, '.', '-', '+' only)"
+  }
 
   $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
   New-Item -ItemType Directory -Path $work | Out-Null

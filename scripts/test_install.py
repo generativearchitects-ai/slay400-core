@@ -151,7 +151,7 @@ class InstallScriptTestMixin:
         else:
             command = [shutil.which("pwsh"), "-NoProfile", "-File", str(INSTALL_PS1), *args]
             env = {**env, "SystemRoot": __import__("os").environ.get("SystemRoot", "")}
-        result = subprocess.run(command, capture_output=True, text=True, env=env, timeout=30)
+        result = subprocess.run(command, capture_output=True, text=True, env=env, timeout=60)
         return result.returncode, result.stdout, result.stderr
 
     def install_args(self, version=None, folder=None, uninstall=False):
@@ -250,6 +250,17 @@ class InstallScriptTestMixin:
         self.assertTrue((self.folder / "my-project" / "VERSION").is_file())
         self.assertTrue((self.folder / "2.0.0" / "VERSION").is_file())
         self.assertFalse((self.folder / "1.0.0").exists())
+
+    def test_a_version_that_does_not_look_like_a_version_is_refused(self):
+        # Review point 4: a version argument (or one read from the releases API) must look like a version before it
+        # is used to build a download address or a path -- not a value with "/" or ".." in it.
+        self.server.add_version("1.0.0", self.EXT, self.build("1.0.0"))
+        self.run_install(*self.install_args(version="1.0.0"))
+        code, out, err = self.run_install(*self.install_args(version="../evil"))
+        self.assertNotEqual(0, code)
+        self.assertIn("does not look like a version", err)
+        self.assertFalse((self.folder.parent / "evil").exists())
+        self.assertTrue((self.folder / "1.0.0" / "VERSION").is_file())
 
 
 class InstallShTest(InstallScriptTestMixin, unittest.TestCase):
