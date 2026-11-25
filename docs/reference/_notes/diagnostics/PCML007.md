@@ -1,0 +1,1 @@
+**Meaning:** an XML attribute the parser does not model explicitly was found and kept, unchanged, in the element's attribute map (the parser is lossless: nothing recognised is ever silently dropped). **What to do:** nothing; this is informational. It usually means the PCML uses an attribute slay400 does not yet give special meaning to.

@@ -1,0 +1,1 @@
+The invented "shop" domain (two programs, `ORDSTATUS` and `ITEMQTY`, copied and adapted from the gateway repository's `fixtures/shop` at commit `f1bfad9`), already overlaid, mocked and ready to validate. Used by the Get started "Quickstart" page.

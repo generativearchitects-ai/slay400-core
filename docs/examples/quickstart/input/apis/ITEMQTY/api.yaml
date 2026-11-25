@@ -1,0 +1,14 @@
+program: ITEMQTY
+pcml: ITEMQTY.pcml
+route: /items/{sku}/quantity
+method: POST
+version: 1.0.0
+summary: Sets the quantity of an item in a warehouse
+
+parameters:
+  P1SKU: { name: sku }
+  P1WHSE: { name: warehouse, in: query }
+  P1CHAN: { name: X-Channel, in: header }
+  P1QTY: { name: quantity, type: integer, pad: left, padChar: "0", required: true }
+  P1NOTE: { name: note }
+  P1ONHD: { name: onHand, type: integer, pad: left, padChar: "0" }

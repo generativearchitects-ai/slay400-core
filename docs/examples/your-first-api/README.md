@@ -1,0 +1,1 @@
+The "shop" domain's `ORDSTATUS` program, as raw PCML only (no overlay yet), with one added `inputoutput` field (`P0RETRY`, invented for this walkthrough) so that `annotate` has something to ask about. Used by the Tutorials "Your first API" page.

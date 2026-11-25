@@ -117,18 +117,17 @@ folder on your `PATH`. Needs Java 21 or later, found from `JAVA_HOME` or `PATH`.
 
 ## Use
 
-```
-slay400 init        # gateway.yaml, and an api.yaml for every folder under apis/ that has PCML and no overlay
-slay400 annotate    # asks which way each inputoutput parameter goes, and writes the answers into api.yaml
-slay400 validate
-```
-
-`init` never overwrites or deletes a file. `annotate` changes only the parameter entries of an `api.yaml`: comments, blank
-lines, key order, quoting, indentation and line endings stay as they are.
+See the documentation: [Quickstart](https://slay400.dev/docs/get-started/quickstart/) (`init`, `validate`, `generate`,
+`bundle`, about ten minutes, no IBM i), [Your first API](https://slay400.dev/docs/tutorials/your-first-api/) (the
+same road slowly, with `annotate` and a validation error provoked and fixed), the
+[command-line reference](https://slay400.dev/docs/reference/cli/) and the
+[diagnostics catalogue](https://slay400.dev/docs/reference/diagnostics/).
 
 Without the launcher, the same commands run from the plain jar: `java -jar pcml-cli-<version>.jar init`.
 
-Operations with errors are left out of the model and reported. The JSON Schemas for editor completion are `api.schema.json` and `gateway.schema.json`, next to `OverlayLoader` in the `pcml-overlay` jar.
+The JSON Schemas for editor completion are `api.schema.json` and `gateway.schema.json`, next to `OverlayLoader` in the
+`pcml-overlay` jar; see the [api.yaml reference](https://slay400.dev/docs/reference/api-yaml/) and the
+[repository defaults reference](https://slay400.dev/docs/reference/repository-defaults/).
 
 ### The library
 

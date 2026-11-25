@@ -1,0 +1,1 @@
+**Meaning:** a field's `struct` attribute names a struct that is not defined anywhere the PCML parser can see, from the point where the field is declared. **What to do:** check the struct's name for a typo, and that it is declared before it is used.

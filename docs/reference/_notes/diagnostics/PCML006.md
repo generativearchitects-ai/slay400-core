@@ -1,0 +1,1 @@
+**Meaning:** two or more structs refer to each other in a cycle (A contains B, B contains A), which the parser notices but does not refuse by itself. **What to do:** usually harmless to leave if nothing uses the cycle, but check with `OVL013`, which the overlay raises as an error if an operation actually tries to expose such a field.

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pcml version="6.0">
+  <program name="ITEMQTY" path="/QSYS.LIB/DEMOLIB.LIB/ITEMQTY.PGM">
+    <data name="P1SKU" type="char" length="8" usage="input"/>
+    <data name="P1WHSE" type="char" length="3" usage="input"/>
+    <data name="P1CHAN" type="char" length="4" usage="input"/>
+    <data name="P1QTY" type="char" length="6" usage="input"/>
+    <data name="P1NOTE" type="char" length="20" usage="input"/>
+    <data name="P1ONHD" type="char" length="6" usage="output"/>
+  </program>
+</pcml>

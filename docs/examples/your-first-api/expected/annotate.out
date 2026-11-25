@@ -1,0 +1,2 @@
+apis/ORDSTATUS/api.yaml:5:5: warning OVL006: Operation ordstatus has no error mapping: a business error reported by the program is returned as a success
+0 errors, 1 warning, 0 notes

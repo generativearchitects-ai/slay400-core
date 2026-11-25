@@ -1,0 +1,17 @@
+pcml: ORDSTATUS.pcml
+version: 0.1.0
+title: ORDSTATUS
+operations:
+  - id: ordstatus
+    program: ORDSTATUS
+    route: /ordstatus
+    method: POST
+    parameters:
+      P0ENV: { name: p0env }
+      P0ORDN: { name: p0ordn }
+      P0RETRY: { name: p0retry }  # inputoutput: run annotate, or add direction: request | response | both | internal
+      P0STAT: { name: p0stat }
+      P0DATE: { name: p0date }
+      P0ERR: { name: p0err }
+      P0ERRC: { name: p0errc }
+      P0XERR: { name: p0xerr }

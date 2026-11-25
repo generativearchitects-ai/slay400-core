@@ -1,0 +1,4 @@
+cases:
+  - name: known item
+    when: { P1SKU: ABC12345 }
+    returns: { P1ONHD: 42 }
