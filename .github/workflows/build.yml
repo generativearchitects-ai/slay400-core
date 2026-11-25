@@ -60,8 +60,10 @@ jobs:
       # it is the last argument.
       - name: Install the dependencies of pcml-cli and pcml-launcher
         run: ./mvnw -B -pl pcml-cli,pcml-launcher -am install -DskipTests
+      # Quoted: pwsh (the default shell on windows-latest) treats an unquoted comma here as its own list
+      # separator and fails to parse the line ("Missing argument in parameter list").
       - name: Run pcml-cli's kickoff 17 tests (GatewayCommandTest, UsageTest)
-        run: ./mvnw -B -pl pcml-cli test -Dtest=GatewayCommandTest,UsageTest
+        run: ./mvnw -B -pl pcml-cli test "-Dtest=GatewayCommandTest,UsageTest"
       # "clean": harmless here (pcml-launcher has no shade execution to duplicate), kept for a build free of
       # leftover state from the install above.
       - name: Build pcml-launcher and run its tests
