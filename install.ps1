@@ -11,7 +11,8 @@
   rewritten on every install, instead of the symlink install.sh uses on POSIX.
 
 .PARAMETER Version
-  The version to install. Default: the latest GitHub release.
+  The version to install. Default: the latest stable release, or the newest pre-release if there is no stable one
+  yet.
 
 .PARAMETER Folder
   The install folder. Default: $HOME\.slay400.
@@ -36,7 +37,8 @@ if ($Help) {
   Write-Output "Usage: install.ps1 [-Version <version>] [-Folder <folder>]"
   Write-Output "       install.ps1 -Uninstall [-Folder <folder>]"
   Write-Output ""
-  Write-Output "Version defaults to the latest GitHub release. Folder defaults to `$HOME\.slay400."
+  Write-Output "Version defaults to the latest stable release, or the newest pre-release if there is no stable"
+  Write-Output "one yet. Folder defaults to `$HOME\.slay400."
   exit 0
 }
 
@@ -71,16 +73,110 @@ function Get-RemoteText([string]$Uri) {
   return $content
 }
 
-function Get-LatestVersion {
+function Get-RemoteStatusAndBody([string]$Uri) {
+  # Returns @{ Status = <int>; Body = <string> } for any HTTP response (2xx/4xx/5xx); throws only when the request
+  # could not be made at all (DNS, connection refused, timeout). A file:// URI (used only by tests, and by
+  # docs:examples' local stand-in for a release) has no HTTP status: reading it is reported as Status 200, a
+  # missing file as a thrown error -- the same two outcomes Get-RemoteFile/Get-RemoteText already give.
+  if ($Uri -like "file://*") {
+    $localPath = $Uri -replace "^file://", ""
+    if (-not (Test-Path -LiteralPath $localPath -PathType Leaf)) {
+      throw "file not found: $localPath"
+    }
+    return @{ Status = 200; Body = (Get-Content -LiteralPath $localPath -Raw) }
+  }
   try {
-    $body = Get-RemoteText $ReleasesApi
+    $response = Invoke-WebRequest -Uri $Uri -UseBasicParsing
+    $body = $response.Content
+    if ($body -is [byte[]]) {
+      $body = [System.Text.Encoding]::UTF8.GetString($body)
+    }
+    return @{ Status = [int]$response.StatusCode; Body = $body }
+  } catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+    # PowerShell 7+'s Invoke-WebRequest throws this for a non-2xx response; the response itself is still there.
+    $errorResponse = $_.Exception.Response
+    $responseBody = $_.ErrorDetails.Message
+    return @{ Status = [int]$errorResponse.StatusCode; Body = $responseBody }
+  } catch [System.Net.WebException] {
+    # Windows PowerShell 5.1's Invoke-WebRequest throws this instead; a response with no HTTP status at all (the
+    # exception's own Response is null) is a real network failure, not an HTTP error status.
+    $errorResponse = $_.Exception.Response
+    if ($null -eq $errorResponse) {
+      throw
+    }
+    $stream = $errorResponse.GetResponseStream()
+    $reader = New-Object System.IO.StreamReader($stream)
+    $responseBody = $reader.ReadToEnd()
+    return @{ Status = [int]$errorResponse.StatusCode; Body = $responseBody }
+  }
+}
+
+function Get-TagFromJson([string]$Body, [string]$Context) {
+  # The version named by one JSON object's "tag_name" field, without its leading "v".
+  if ($Body -notmatch '"tag_name"\s*:\s*"v([^"]+)"') {
+    Fail "could not read a tag_name from $Context"
+  }
+  return $Matches[1]
+}
+
+function Get-FirstNonDraftTag([string]$Body) {
+  # The first "tag_name" in a JSON array of releases whose own "draft" is false, in document order (GitHub's list
+  # endpoint returns releases sorted by creation time, descending -- newest first), without its leading "v"; $null
+  # if there is none. Not a real JSON parser, like the rest of this script's reading of "tag_name": pairs each
+  # tag_name with the "draft" value that follows it and precedes the next tag_name, which is how GitHub always
+  # serializes a release's own fields (never interleaved with another's).
+  $matches_ = [regex]::Matches($Body, '"tag_name"\s*:\s*"(v[^"]+)"|"draft"\s*:\s*(true|false)')
+  $pending = $null
+  foreach ($m in $matches_) {
+    if ($m.Groups[1].Success) {
+      $pending = $m.Groups[1].Value
+    } elseif ($m.Groups[2].Success) {
+      if ($pending) {
+        if ($m.Groups[2].Value -eq "false") {
+          return $pending.Substring(1)
+        }
+        $pending = $null
+      }
+    }
+  }
+  return $null
+}
+
+function Get-LatestNonDraftRelease {
+  # No stable release exists ($ReleasesApi answered 404): fall back to the newest release that is not a draft,
+  # which may be a pre-release -- said so in one line, since a reader who asked for "the latest" should know which
+  # kind they got. GitHub's own "latest" endpoint already excludes both drafts and pre-releases, so reaching here
+  # at all means there is no stable release yet.
+  $listApi = $ReleasesApi -replace "/latest$", ""
+  try {
+    $result = Get-RemoteStatusAndBody $listApi
   } catch {
     Fail "could not reach $ReleasesApi to find the latest version"
   }
-  if ($body -notmatch '"tag_name"\s*:\s*"v([^"]+)"') {
-    Fail "could not read a tag_name from $ReleasesApi"
+  if ($result.Status -ne 200) {
+    Fail "could not reach $ReleasesApi to find the latest version"
   }
-  return $Matches[1]
+  $tag = Get-FirstNonDraftTag $result.Body
+  if (-not $tag) {
+    Fail "no release exists yet at $listApi"
+  }
+  # -InformationAction Continue: visible by default, same as Write-Host, but (unlike Write-Host) a stream a caller
+  # can still redirect or suppress, and not flagged by PSScriptAnalyzer's PSAvoidUsingWriteHost.
+  Write-Information "slay400: no stable release exists yet; installing the pre-release $tag" -InformationAction Continue
+  return $tag
+}
+
+function Get-LatestVersion {
+  try {
+    $result = Get-RemoteStatusAndBody $ReleasesApi
+  } catch {
+    Fail "could not reach $ReleasesApi to find the latest version"
+  }
+  switch ($result.Status) {
+    200 { return Get-TagFromJson $result.Body $ReleasesApi }
+    404 { return Get-LatestNonDraftRelease }
+    default { Fail "could not reach $ReleasesApi to find the latest version" }
+  }
 }
 
 function Install-Slay400([string]$Version, [string]$Folder) {

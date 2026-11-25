@@ -60,12 +60,18 @@ def sha256_line(data, name):
 
 
 class ReleaseStandIn(http.server.ThreadingHTTPServer):
-    """files: path -> bytes. latest: the version /api/latest reports. truncate: a path whose response is cut short."""
+    """files: path -> bytes. latest: the version /api/latest reports, or None for a 404 (no stable release, the
+    real GitHub behaviour when every release is a draft or a pre-release). releases: the list /api reports, in the
+    order given (GitHub's own list is newest-created-first; a test adds them in that order). error_path: a path
+    that answers 500 instead of its normal response, to test that any API failure other than a 404 keeps the
+    existing message. truncate: a path whose response is cut short."""
 
     def __init__(self):
         super().__init__(("127.0.0.1", 0), _Handler)
         self.files = {}
         self.latest = None
+        self.releases = []
+        self.error_path = None
         self.truncate = None
 
     @property
@@ -76,17 +82,40 @@ class ReleaseStandIn(http.server.ThreadingHTTPServer):
     def releases_api(self):
         return f"{self.releases_url}/api/latest"
 
+    @property
+    def releases_api_list(self):
+        return f"{self.releases_url}/api"
+
     def add_version(self, version, ext, data):
         archive = f"/download/v{version}/slay400-{version}.{ext}"
         self.files[archive] = data
         self.files[archive + ".sha256"] = sha256_line(data, f"slay400-{version}.{ext}")
         return archive
 
+    def add_release(self, tag, draft=False):
+        self.releases.append({"tag_name": tag, "draft": draft})
+
 
 class _Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.server.error_path is not None and self.path == self.server.error_path:
+            self.send_response(500)
+            self.end_headers()
+            return
         if self.path == "/api/latest":
+            if self.server.latest is None:
+                self.send_response(404)
+                self.end_headers()
+                return
             body = json.dumps({"tag_name": f"v{self.server.latest}"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path == "/api":
+            body = json.dumps(self.server.releases).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -223,6 +252,56 @@ class InstallScriptTestMixin:
         code, out, err = self.run_install(*self.install_args())
         self.assertEqual(0, code, err)
         self.assertTrue((self.folder / "1.0.0" / "VERSION").is_file())
+
+    def test_only_a_prerelease_exists_and_is_installed_with_a_notice(self):
+        # The defect: GitHub's "latest release" endpoint excludes pre-releases, and 404s when there is no stable
+        # release at all. With only a pre-release published, install must still work, from the releases list, and
+        # say so.
+        self.server.add_version("0.2.0-beta.1", self.EXT, self.build("0.2.0-beta.1"))
+        self.server.add_release("v0.2.0-beta.1", draft=False)
+        code, out, err = self.run_install(*self.install_args())
+        self.assertEqual(0, code, err)
+        self.assertTrue((self.folder / "0.2.0-beta.1" / "VERSION").is_file())
+        self.assertIn("pre-release", out + err)
+        self.assertIn("0.2.0-beta.1", out + err)
+
+    def test_a_stable_release_wins_over_a_newer_prerelease(self):
+        # /api/latest already answers with the stable release directly (GitHub's own behaviour); the newer
+        # pre-release in the list must not be preferred, and the list must not even need to be reachable.
+        self.server.add_version("1.0.0", self.EXT, self.build("1.0.0"))
+        self.server.latest = "1.0.0"
+        self.server.add_release("v2.0.0-beta.1", draft=False)  # newer, but not stable: must lose
+        code, out, err = self.run_install(*self.install_args())
+        self.assertEqual(0, code, err)
+        self.assertTrue((self.folder / "1.0.0" / "VERSION").is_file())
+        self.assertFalse((self.folder / "2.0.0-beta.1").exists())
+        self.assertNotIn("pre-release", out + err)
+
+    def test_a_draft_release_is_not_installed_even_as_a_fallback(self):
+        # Only a draft exists (no stable release, and the one pre-release is still a draft): nothing to install.
+        self.server.add_release("v0.3.0-beta.1", draft=True)
+        code, out, err = self.run_install(*self.install_args())
+        self.assertNotEqual(0, code)
+        self.assertFalse((self.folder / "0.3.0-beta.1").exists())
+
+    def test_no_release_at_all_is_a_clear_failure(self):
+        # /api/latest 404s and the list is empty: nothing has ever been released.
+        code, out, err = self.run_install(*self.install_args())
+        self.assertNotEqual(0, code)
+        self.assertFalse((self.folder).exists())
+
+    def test_the_latest_endpoint_failing_with_something_other_than_404_keeps_todays_message(self):
+        self.server.error_path = "/api/latest"
+        code, out, err = self.run_install(*self.install_args())
+        self.assertNotEqual(0, code)
+        self.assertIn("could not reach", err)
+        self.assertNotIn("pre-release", out + err)
+
+    def test_the_releases_list_failing_after_a_404_keeps_todays_message(self):
+        self.server.error_path = "/api"  # /api/latest answers 404 (its default), then the fallback list 500s
+        code, out, err = self.run_install(*self.install_args())
+        self.assertNotEqual(0, code)
+        self.assertIn("could not reach", err)
 
     def test_uninstall_removes_only_what_it_created(self):
         self.server.add_version("1.0.0", self.EXT, self.build("1.0.0"))
