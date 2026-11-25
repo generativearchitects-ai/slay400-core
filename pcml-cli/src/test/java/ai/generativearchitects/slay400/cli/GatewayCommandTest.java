@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.EnumSet;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -66,6 +67,66 @@ class GatewayCommandTest {
                 PosixFilePermission.OWNER_EXECUTE));
         Result result = Support.runOnPath(dir, bin.toString(), "gateway");
         assertThat(result.exit()).isEqualTo(3);
+    }
+
+    /**
+     * Kickoff 17 review, point 3: stopping slay400 itself must not leave the gateway running without an owner.
+     * {@code Cli.stopGateway} is where that is done (registered as a shutdown hook in {@code runGateway}, which the
+     * JDK guarantees runs on a SIGTERM to a normally-launched process -- not re-tested here); this tests the part
+     * kickoff 17 actually adds, directly, against a real child process: a stub that traps SIGTERM and records it.
+     * (An end-to-end version that also sends a real OS signal to slay400 itself, started as a subprocess of this
+     * test, was tried and dropped: that nests one JVM inside another JVM's process tree, and in that specific
+     * shape, this sandbox's JDK does not reliably run the inner JVM's own shutdown hooks on SIGTERM -- a sandbox/JDK
+     * nesting artifact, not a slay400 bug. Launched normally, by a shell, a JVM's shutdown hooks run on SIGTERM as
+     * documented; confirmed by hand. The gateway itself is very unlikely to be a JVM process at all.)
+     */
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void stopGatewayAsksTheChildToStopAndWaitsForIt(@TempDir Path dir) throws IOException {
+        Path stopped = dir.resolve("stopped");
+        Process gateway = new ProcessBuilder(trapScript(dir, "touch \"" + stopped + "\"; exit 0")).start();
+        waitForFile(dir.resolve("ready"));
+
+        Cli.stopGateway(gateway);
+
+        assertThat(gateway.isAlive()).isFalse();
+        assertThat(stopped).exists();
+    }
+
+    /** A child that ignores the request to stop must still end up dead, forced, within the bounded wait. */
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void stopGatewayForcesAChildThatIgnoresTheRequestToStop(@TempDir Path dir) throws IOException {
+        Process gateway = new ProcessBuilder(trapScript(dir, "")).start(); // an empty trap: catches TERM, does nothing, keeps running
+        waitForFile(dir.resolve("ready"));
+
+        Cli.stopGateway(gateway);
+
+        assertThat(gateway.isAlive()).isFalse();
+    }
+
+    /** A script at {@code dir/stub.sh} that traps TERM to run {@code onTerm}, then touches {@code dir/ready} and loops. */
+    private static String trapScript(Path dir, String onTerm) throws IOException {
+        Path ready = dir.resolve("ready");
+        Path script = dir.resolve("stub.sh");
+        Files.writeString(script, "#!/bin/sh\n" + "trap '" + onTerm + "' TERM\n" + "touch \"" + ready + "\"\n" + "while true; do sleep 1; done\n");
+        Files.setPosixFilePermissions(script, EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
+                PosixFilePermission.OWNER_EXECUTE));
+        return script.toString();
+    }
+
+    private static void waitForFile(Path file) throws IOException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (!Files.exists(file)) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("gave up waiting for " + file + " to exist");
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                throw new IOException(e);
+            }
+        }
     }
 
     @Test

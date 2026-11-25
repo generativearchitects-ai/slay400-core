@@ -15,12 +15,14 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The command line, as a function: arguments in, exit code out. It never exits the process and reads no environment
@@ -45,6 +47,8 @@ public final class Cli {
 
     private static final String GATEWAY_COMMAND = "slay400-gateway";
     private static final String GATEWAY_REPOSITORY_URL = "https://github.com/generativearchitects-ai/slay400";
+    /** How long {@code gateway} gives the child to stop on its own, and then to die, before giving up on waiting. */
+    private static final Duration GATEWAY_STOP_GRACE = Duration.ofSeconds(5);
 
     private static final Map<String, Command> COMMANDS = Map.of("init", new InitCommand(), "annotate", new AnnotateCommand(),
             "validate", new ValidateCommand(), "generate", new GenerateCommand(), "bundle", new BundleCommand(),
@@ -164,13 +168,55 @@ public final class Cli {
         Thread input = pump(in, process.getOutputStream(), true);
         Thread output = pump(process.getInputStream(), out, false);
         Thread error = pump(process.getErrorStream(), err, false);
-        int exit = process.waitFor();
-        output.join();
-        error.join();
-        out.flush();
-        err.flush();
-        input.interrupt();
-        return exit;
+        // So that stopping slay400 itself (a service manager's or a container's SIGTERM) stops the gateway too,
+        // instead of leaving it running without an owner: see stopGateway for what this can and cannot guarantee.
+        Thread stopHook = new Thread(() -> stopGateway(process));
+        Runtime.getRuntime().addShutdownHook(stopHook);
+        try {
+            int exit = process.waitFor();
+            output.join();
+            error.join();
+            out.flush();
+            err.flush();
+            input.interrupt();
+            return exit;
+        } finally {
+            try {
+                Runtime.getRuntime().removeShutdownHook(stopHook);
+            } catch (IllegalStateException ignored) {
+                // the JVM is already shutting down; stopHook runs (or already ran) on its own
+            }
+        }
+    }
+
+    /**
+     * Asks the gateway to stop and waits for it, bounded by {@link #GATEWAY_STOP_GRACE}, forcing it if it does not.
+     * Registered as a shutdown hook, so a SIGTERM to this process (a service manager's or a container's stop) runs
+     * it before the JVM actually exits.
+     *
+     * <p>On Windows, {@link Process#destroy()} is an immediate, unconditional kill (it calls {@code TerminateProcess};
+     * there is no graceful request to a process in the Win32 API the way {@code SIGTERM} is one on POSIX). This
+     * hook itself still runs for a graceful stop of slay400 there -- Ctrl+C, or {@code taskkill} without {@code /F}
+     * against a console application, both of which the JVM's own console control handler turns into an orderly
+     * shutdown -- but not for a hard kill ({@code taskkill /F}, or a service manager that escalates straight to
+     * it): nothing in the JVM runs then, on any platform, and the gateway is left running. Not made reliable on
+     * Windows for that reason; left as a known gap (kickoff 17 review).
+     */
+    // Package-visible, not private: so GatewayCommandTest can call it directly against a real stub process, without
+    // the unrelated unreliability of also sending an OS signal to a nested JVM to trigger it (see that test).
+    static void stopGateway(Process process) {
+        if (!process.isAlive()) {
+            return;
+        }
+        process.destroy();
+        try {
+            if (!process.waitFor(GATEWAY_STOP_GRACE.toMillis(), TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                process.waitFor(GATEWAY_STOP_GRACE.toMillis(), TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException e) {
+            process.destroyForcibly();
+        }
     }
 
     /** Copies bytes on a daemon thread until {@code from} ends; closes {@code to} then if {@code closeOnEnd}. */
