@@ -50,18 +50,22 @@ jobs:
           java-version: '21'
           cache: maven
       # Dependencies are only built here, not tested: this job's job is the launcher tests, on every OS, not every
-      # existing test of every module pcml-cli pulls in (two of those have pre-existing, OS-specific failures of
-      # their own on macOS and Windows, unrelated to kickoff 17 -- the existing "verify" job, ubuntu-latest only,
-      # is unaffected and still runs every test of every module there).
-      # -Dinvoker.skip is for pcml-maven-plugin, not a dependency of pcml-cli or pcml-launcher: left out, since
-      # mvnw.cmd on Windows mis-splits a dotted property's name from its value when it is the last argument.
+      # existing test of every module pcml-cli pulls in. Two dependencies (pcml-overlay, pcml-model) and pcml-cli's
+      # own pre-existing suite (AnnotateTest and others, which build expected strings with a hardcoded "\n" while
+      # the code under test uses System.lineSeparator(), "\r\n" on Windows) have pre-existing, OS-specific failures
+      # of their own, unrelated to kickoff 17 and never seen before this job, the first one in this repository to
+      # run on macOS or Windows. The existing "verify" job (ubuntu-latest only) is unaffected and still runs every
+      # test of every module there. -Dinvoker.skip is for pcml-maven-plugin, not a dependency of pcml-cli or
+      # pcml-launcher: left out, since mvnw.cmd on Windows mis-splits a dotted property's name from its value when
+      # it is the last argument.
       - name: Install the dependencies of pcml-cli and pcml-launcher
         run: ./mvnw -B -pl pcml-cli,pcml-launcher -am install -DskipTests
-      # "clean": install just shaded pcml-cli's jar; without it, the second shade execution here packs that jar a
-      # second time (duplicate entry: META-INF/NOTICE-slay400-core) -- the same reason release-files and release.yml
-      # run "clean deploy", not "deploy", after "install".
-      - name: Build pcml-cli and pcml-launcher, and run their own tests
-        run: ./mvnw -B -pl pcml-cli,pcml-launcher clean verify
+      - name: Run pcml-cli's kickoff 17 tests (GatewayCommandTest, UsageTest)
+        run: ./mvnw -B -pl pcml-cli test -Dtest=GatewayCommandTest,UsageTest
+      # "clean": harmless here (pcml-launcher has no shade execution to duplicate), kept for a build free of
+      # leftover state from the install above.
+      - name: Build pcml-launcher and run its tests
+        run: ./mvnw -B -pl pcml-launcher clean verify
       - name: Install script tests (install.sh on Linux and macOS, install.ps1 on all three)
         run: python3 -m unittest scripts.test_install -v
       # For the acceptance criteria of kickoff 17 (run the CI-built archive, not a local one): one copy of each
