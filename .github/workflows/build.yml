@@ -53,6 +53,14 @@ jobs:
         run: ./mvnw -B -pl pcml-cli,pcml-launcher -am verify
       - name: Install script tests (install.sh on Linux and macOS, install.ps1 on all three)
         run: python3 -m unittest scripts.test_install -v
+      # For the acceptance criteria of kickoff 17 (run the CI-built archive, not a local one): one copy of each
+      # archive, from the Linux leg, as a build artifact.
+      - name: Upload the distribution archives
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: slay400-distribution
+          path: pcml-launcher/target/pcml-launcher-*.tar.gz
 
   # Mutation testing: PIT changes the production code in small ways and the tests must notice.
   # Fails if fewer than ${mutation.threshold} percent (see pom.xml) of the mutants are killed.
