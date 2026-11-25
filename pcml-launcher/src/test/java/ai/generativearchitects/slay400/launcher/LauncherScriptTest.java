@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -176,14 +177,38 @@ class LauncherScriptTest {
     @Test
     @EnabledOnOs(OS.WINDOWS)
     void javaOlderThan21GivesOneSentenceAndExitStatus70OnWindows(@TempDir Path dir) throws Exception {
+        // The script only ever looks for JAVA_HOME\bin\java.exe (how a real JDK ships on Windows), so the stand-in
+        // has to be a real .exe, not a .cmd/.bat the exist check would silently skip, falling through to the real
+        // Java 21 on PATH and making this test pass for the wrong reason.
         Path oldJavaHome = dir.resolve("old-java");
         Path oldJavaBin = oldJavaHome.resolve("bin");
         Files.createDirectories(oldJavaBin);
-        Files.writeString(oldJavaBin.resolve("java.cmd"), "@echo off\r\necho java version \"1.8.0_392\"\r\n");
+        compileJavaVersionStub(dir, oldJavaBin.resolve("java.exe"), "java version \"1.8.0_392\"");
         Path bin = installation(dir, false);
         Run run = runWithEnv(dir, java.util.Map.of("JAVA_HOME", oldJavaHome.toString()), bin.resolve("slay400.cmd").toString());
         assertThat(run.exit()).isEqualTo(70);
         assertThat(run.err()).contains("Java 21 or later");
+    }
+
+    /** Compiles a tiny real .exe (with csc.exe, part of every Windows' .NET Framework) that prints {@code versionLine}. */
+    private static void compileJavaVersionStub(Path dir, Path exe, String versionLine) throws IOException, InterruptedException {
+        Path source = dir.resolve("JavaStub.cs");
+        Files.writeString(source, "class JavaStub { static void Main() { System.Console.Error.WriteLine(\""
+                + versionLine.replace("\"", "\\\"") + "\"); } }\n");
+        Path csc = findCsc();
+        Process process = new ProcessBuilder(csc.toString(), "/nologo", "/out:" + exe, source.toString())
+                .redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(process.waitFor()).as("csc.exe output: %s", output).isZero();
+    }
+
+    private static Path findCsc() throws IOException {
+        Path framework = Path.of(System.getenv("WINDIR"), "Microsoft.NET", "Framework64");
+        try (var versions = Files.list(framework)) {
+            return versions.filter(p -> Files.isRegularFile(p.resolve("csc.exe"))).max(Comparator.naturalOrder())
+                    .map(p -> p.resolve("csc.exe"))
+                    .orElseThrow(() -> new IOException("csc.exe not found under " + framework));
+        }
     }
 
     @Test
