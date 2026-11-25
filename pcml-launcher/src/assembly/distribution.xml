@@ -1,0 +1,64 @@
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/2.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/2.2.0 https://maven.apache.org/xsd/assembly-2.2.0.xsd">
+  <!--
+    The slay400 distribution archive (kickoff 17): bin/ (the launch scripts), lib/ (pcml-cli's runnable jar,
+    unchanged), LICENSE, NOTICE (the repository's own, plus pcml-cli already carries the third-party ones inside
+    its jar), and VERSION (one line, written by the write-version-file execution of this module's pom). The
+    top folder is slay400-<version>/, the one place in this module the product name appears in the archive's
+    content, with the launch scripts themselves (decision 86).
+  -->
+  <id>dist</id>
+  <formats>
+    <format>tar.gz</format>
+    <format>zip</format>
+  </formats>
+  <includeBaseDirectory>true</includeBaseDirectory>
+  <baseDirectory>slay400-${project.version}</baseDirectory>
+
+  <files>
+    <file>
+      <source>${project.basedir}/src/main/scripts/slay400</source>
+      <outputDirectory>bin</outputDirectory>
+      <fileMode>0755</fileMode>
+      <lineEnding>unix</lineEnding>
+      <filtered>false</filtered>
+    </file>
+    <file>
+      <source>${project.basedir}/src/main/scripts/slay400.cmd</source>
+      <outputDirectory>bin</outputDirectory>
+      <fileMode>0644</fileMode>
+      <lineEnding>dos</lineEnding>
+      <filtered>false</filtered>
+    </file>
+    <file>
+      <source>${project.basedir}/../LICENSE</source>
+      <outputDirectory>.</outputDirectory>
+      <fileMode>0644</fileMode>
+    </file>
+    <file>
+      <source>${project.basedir}/../NOTICE</source>
+      <outputDirectory>.</outputDirectory>
+      <fileMode>0644</fileMode>
+    </file>
+    <file>
+      <source>${project.build.directory}/version-resource/VERSION</source>
+      <outputDirectory>.</outputDirectory>
+      <fileMode>0644</fileMode>
+    </file>
+  </files>
+
+  <dependencySets>
+    <dependencySet>
+      <outputDirectory>lib</outputDirectory>
+      <useProjectArtifact>false</useProjectArtifact>
+      <unpack>false</unpack>
+      <scope>runtime</scope>
+      <includes>
+        <include>ai.generativearchitects.slay400:pcml-cli</include>
+      </includes>
+      <outputFileNameMapping>${artifact.artifactId}-${artifact.baseVersion}.${artifact.extension}</outputFileNameMapping>
+      <fileMode>0644</fileMode>
+    </dependencySet>
+  </dependencySets>
+</assembly>

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.generativearchitects.slay400</groupId>
+    <artifactId>slay400-core</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>pcml-launcher</artifactId>
+  <name>pcml-launcher</name>
+  <description>
+    The slay400 distribution archive (kickoff 17): launch scripts for bin/slay400 (POSIX) and bin/slay400.cmd
+    (Windows) wrapping pcml-cli's runnable jar, packaged as a .tar.gz and a .zip. No Java source: packaging pom.
+  </description>
+  <packaging>pom</packaging>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.generativearchitects.slay400</groupId>
+      <artifactId>pcml-cli</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+
+  <profiles>
+    <!-- No production Java in this module for PIT to mutate; running it here would only measure the empty set. -->
+    <profile>
+      <id>mutation</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-maven</artifactId>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
+  <build>
+    <plugins>
+      <!--
+        Packaging pom does not bind the compiler, surefire or resources goals that a jar module gets for free:
+        this module has tests (LauncherScriptTest) but no main sources, so only test-compile and test are bound.
+      -->
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>default-testCompile</id>
+            <phase>test-compile</phase>
+            <goals>
+              <goal>testCompile</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>default-test</id>
+            <phase>test</phase>
+            <goals>
+              <goal>test</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!--
+        Writes the one-line VERSION file the archive carries at its root, filtering ${project.version} into it.
+        maven-resources-plugin, already in pluginManagement, Apache-2.0.
+      -->
+      <plugin>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>write-version-file</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/version-resource</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>src/main/filtered</directory>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!--
+        Builds the slay400-<version>.tar.gz and .zip described by src/assembly/distribution.xml, and attaches both
+        as this module's only artifacts (there is no main jar). maven-assembly-plugin 3.7.1, Apache-2.0.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.7.1</version>
+        <executions>
+          <execution>
+            <id>build-distribution</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <configuration>
+              <descriptors>
+                <descriptor>src/assembly/distribution.xml</descriptor>
+              </descriptors>
+              <appendAssemblyId>false</appendAssemblyId>
+              <tarLongFileMode>posix</tarLongFileMode>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
