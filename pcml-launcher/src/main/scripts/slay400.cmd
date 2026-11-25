@@ -22,10 +22,16 @@ if not defined JAVA_EXE (
   exit /b %NO_JAVA%
 )
 
+rem Not just the first line: when JAVA_TOOL_OPTIONS or _JAVA_OPTIONS is set (common in containers and CI images),
+rem the JVM prints "Picked up JAVA_TOOL_OPTIONS: ..." before the version, even for an empty value.
 set "VERSION_LINE="
+set "FIRST_LINE="
 for /f "delims=" %%L in ('""%JAVA_EXE%"" -version 2^>^&1') do (
-  if not defined VERSION_LINE set "VERSION_LINE=%%L"
+  if not defined FIRST_LINE set "FIRST_LINE=%%L"
+  echo %%L| findstr /c:"version" >nul
+  if not errorlevel 1 if not defined VERSION_LINE set "VERSION_LINE=%%L"
 )
+if not defined VERSION_LINE set "VERSION_LINE=%FIRST_LINE%"
 
 set "QUOTED="
 for /f tokens^=2delims^=^" %%V in ("%VERSION_LINE%") do set "QUOTED=%%V"

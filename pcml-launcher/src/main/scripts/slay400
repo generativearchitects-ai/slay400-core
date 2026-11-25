@@ -44,7 +44,11 @@ java_bin="$(find_java)" || {
   exit "$NO_JAVA"
 }
 
-version_line="$("$java_bin" -version 2>&1 | head -n 1)"
+# Not just the first line: when JAVA_TOOL_OPTIONS or _JAVA_OPTIONS is set (common in containers and CI images),
+# the JVM prints "Picked up JAVA_TOOL_OPTIONS: ..." before the version, even for an empty value.
+version_output="$("$java_bin" -version 2>&1)"
+version_line="$(printf '%s\n' "$version_output" | grep 'version "' | head -n 1)"
+[ -n "$version_line" ] || version_line="$(printf '%s\n' "$version_output" | head -n 1)"
 quoted=$(printf '%s\n' "$version_line" | sed -n 's/.*"\(.*\)".*/\1/p')
 case "$quoted" in
   1.*) major=$(printf '%s\n' "$quoted" | cut -d. -f2) ;;

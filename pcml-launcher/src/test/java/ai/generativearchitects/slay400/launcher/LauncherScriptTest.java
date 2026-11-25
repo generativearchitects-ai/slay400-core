@@ -154,6 +154,40 @@ class LauncherScriptTest {
         assertThat(run.exit()).isZero();
     }
 
+    /**
+     * Review point 1: JAVA_TOOL_OPTIONS or _JAVA_OPTIONS, common in containers, CI images and company machines,
+     * make the JVM print "Picked up ..." as the first line of {@code java -version}, even for an empty value; the
+     * script must still find the real version line, not just the first one.
+     */
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void javaToolOptionsAndUnderscoreJavaOptionsDoNotBreakVersionDetectionOnPosix(@TempDir Path dir) throws Exception {
+        Path bin = installation(dir, true);
+        for (String value : List.of("-Xmx128m", "")) {
+            Run withToolOptions = runWithEnv(dir, java.util.Map.of("JAVA_TOOL_OPTIONS", value), bin.resolve("slay400").toString(), "0");
+            assertThat(withToolOptions.exit()).as("JAVA_TOOL_OPTIONS=[%s]: %s", value, withToolOptions.err()).isZero();
+            Run withJavaOptions = runWithEnv(dir, java.util.Map.of("_JAVA_OPTIONS", value), bin.resolve("slay400").toString(), "0");
+            assertThat(withJavaOptions.exit()).as("_JAVA_OPTIONS=[%s]: %s", value, withJavaOptions.err()).isZero();
+        }
+    }
+
+    /** The exact reproduction of review point 1: an old Java that also picks up JAVA_TOOL_OPTIONS must still be caught. */
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void javaOlderThan21IsStillDetectedWithAPickedUpToolOptionsLineOnPosix(@TempDir Path dir) throws Exception {
+        Path oldJavaHome = dir.resolve("old-java");
+        Path oldJavaBin = oldJavaHome.resolve("bin");
+        Files.createDirectories(oldJavaBin);
+        Path oldJava = oldJavaBin.resolve("java");
+        Files.writeString(oldJava, "#!/bin/sh\necho 'Picked up JAVA_TOOL_OPTIONS: -Xmx128m' >&2\necho 'java version \"1.8.0_392\"'\n");
+        Files.setPosixFilePermissions(oldJava, EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_EXECUTE));
+        Path bin = installation(dir, true);
+        Run run = runWithEnv(dir, java.util.Map.of("JAVA_HOME", oldJavaHome.toString(), "JAVA_TOOL_OPTIONS", "-Xmx128m"),
+                bin.resolve("slay400").toString());
+        assertThat(run.exit()).isEqualTo(70);
+        assertThat(run.err()).contains("found Java 1.8.0_392").contains("Java 21 or later");
+    }
+
     // ---- Windows
 
     @Test
@@ -190,11 +224,46 @@ class LauncherScriptTest {
         assertThat(run.err()).contains("Java 21 or later");
     }
 
-    /** Compiles a tiny real .exe (with csc.exe, part of every Windows' .NET Framework) that prints {@code versionLine}. */
-    private static void compileJavaVersionStub(Path dir, Path exe, String versionLine) throws IOException, InterruptedException {
+    /**
+     * Review point 1, on Windows: JAVA_TOOL_OPTIONS or _JAVA_OPTIONS make the JVM print "Picked up ..." as the
+     * first line of {@code java -version}, even for an empty value; the script must still find the real version
+     * line, not just the first one.
+     */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void javaToolOptionsAndUnderscoreJavaOptionsDoNotBreakVersionDetectionOnWindows(@TempDir Path dir) throws Exception {
+        Path bin = installation(dir, false);
+        for (String value : List.of("-Xmx128m", "")) {
+            Run withToolOptions = runWithEnv(dir, java.util.Map.of("JAVA_TOOL_OPTIONS", value), bin.resolve("slay400.cmd").toString(), "0");
+            assertThat(withToolOptions.exit()).as("JAVA_TOOL_OPTIONS=[%s]: %s", value, withToolOptions.err()).isZero();
+            Run withJavaOptions = runWithEnv(dir, java.util.Map.of("_JAVA_OPTIONS", value), bin.resolve("slay400.cmd").toString(), "0");
+            assertThat(withJavaOptions.exit()).as("_JAVA_OPTIONS=[%s]: %s", value, withJavaOptions.err()).isZero();
+        }
+    }
+
+    /** The exact reproduction of review point 1, on Windows: an old Java that also picks up JAVA_TOOL_OPTIONS. */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void javaOlderThan21IsStillDetectedWithAPickedUpToolOptionsLineOnWindows(@TempDir Path dir) throws Exception {
+        Path oldJavaHome = dir.resolve("old-java");
+        Path oldJavaBin = oldJavaHome.resolve("bin");
+        Files.createDirectories(oldJavaBin);
+        compileJavaVersionStub(dir, oldJavaBin.resolve("java.exe"), "Picked up JAVA_TOOL_OPTIONS: -Xmx128m", "java version \"1.8.0_392\"");
+        Path bin = installation(dir, false);
+        Run run = runWithEnv(dir, java.util.Map.of("JAVA_HOME", oldJavaHome.toString(), "JAVA_TOOL_OPTIONS", "-Xmx128m"),
+                bin.resolve("slay400.cmd").toString());
+        assertThat(run.exit()).isEqualTo(70);
+        assertThat(run.err()).contains("Java 21 or later");
+    }
+
+    /** Compiles a tiny real .exe (with csc.exe, part of every Windows' .NET Framework) that prints each of {@code lines}. */
+    private static void compileJavaVersionStub(Path dir, Path exe, String... lines) throws IOException, InterruptedException {
         Path source = dir.resolve("JavaStub.cs");
-        Files.writeString(source, "class JavaStub { static void Main() { System.Console.Error.WriteLine(\""
-                + versionLine.replace("\"", "\\\"") + "\"); } }\n");
+        StringBuilder body = new StringBuilder();
+        for (String line : lines) {
+            body.append("System.Console.Error.WriteLine(\"").append(line.replace("\"", "\\\"")).append("\");");
+        }
+        Files.writeString(source, "class JavaStub { static void Main() { " + body + " } }\n");
         Path csc = findCsc();
         Process process = new ProcessBuilder(csc.toString(), "/nologo", "/out:" + exe, source.toString())
                 .redirectErrorStream(true).start();
