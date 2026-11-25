@@ -61,11 +61,27 @@ latest_version() {
   printf '%s\n' "$tag" | sed 's/^v//'
 }
 
+# A sub-folder is one of our installs, beyond doubt, only when its name is the content of its own VERSION file and
+# it holds bin/slay400 and a jar under lib/ -- not merely "has a file named VERSION", which any number of unrelated
+# projects also do.
+is_our_install() {
+  entry="$1"
+  name="$(basename "$entry")"
+  [ -f "$entry/VERSION" ] || return 1
+  [ "$(cat "$entry/VERSION")" = "$name" ] || return 1
+  [ -f "$entry/bin/slay400" ] || return 1
+  for jar in "$entry"/lib/*.jar; do
+    [ -f "$jar" ] && return 0
+  done
+  return 1
+}
+
 do_uninstall() {
   folder="$1"
   if [ -d "$folder" ]; then
     for entry in "$folder"/*; do
-      [ -d "$entry" ] && [ -f "$entry/VERSION" ] && rm -rf "$entry"
+      [ -d "$entry" ] || continue
+      is_our_install "$entry" && rm -rf "$entry"
     done
     if [ -L "$folder/bin/slay400" ]; then
       rm -f "$folder/bin/slay400"

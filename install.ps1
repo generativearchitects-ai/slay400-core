@@ -141,10 +141,28 @@ function Install-Slay400([string]$Version, [string]$Folder) {
   }
 }
 
+# A sub-folder is one of our installs, beyond doubt, only when its name is the content of its own VERSION file and
+# it holds bin\slay400.cmd and a jar under lib\ -- not merely "has a file named VERSION", which any number of
+# unrelated projects also do.
+function Test-OurInstall([System.IO.DirectoryInfo]$Entry) {
+  $versionFile = Join-Path $Entry.FullName "VERSION"
+  if (-not (Test-Path $versionFile -PathType Leaf)) {
+    return $false
+  }
+  if ((Get-Content -LiteralPath $versionFile -Raw).Trim() -ne $Entry.Name) {
+    return $false
+  }
+  if (-not (Test-Path (Join-Path $Entry.FullName "bin\slay400.cmd") -PathType Leaf)) {
+    return $false
+  }
+  $jars = Get-ChildItem -LiteralPath (Join-Path $Entry.FullName "lib") -Filter "*.jar" -ErrorAction SilentlyContinue
+  return [bool]$jars
+}
+
 function Uninstall-Slay400([string]$Folder) {
   if (Test-Path $Folder) {
     Get-ChildItem -LiteralPath $Folder -Directory | ForEach-Object {
-      if (Test-Path (Join-Path $_.FullName "VERSION")) {
+      if (Test-OurInstall $_) {
         Remove-Item -LiteralPath $_.FullName -Recurse -Force
       }
     }

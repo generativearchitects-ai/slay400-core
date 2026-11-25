@@ -36,6 +36,7 @@ def build_tar_gz(version):
             (f"{base}/VERSION", f"{version}\n".encode(), 0o644),
             (f"{base}/bin/slay400", f"#!/bin/sh\necho stub-{version}\n".encode(), 0o755),
             (f"{base}/bin/slay400.cmd", b"@echo off\r\necho stub\r\n", 0o644),
+            (f"{base}/lib/pcml-cli-{version}.jar", b"not a real jar, just a stand-in", 0o644),
         ]:
             info = tarfile.TarInfo(name)
             info.size = len(content)
@@ -50,6 +51,7 @@ def build_zip(version):
     with zipfile.ZipFile(buffer, "w") as zf:
         zf.writestr(f"{base}/VERSION", f"{version}\n")
         zf.writestr(f"{base}/bin/slay400.cmd", "@echo off\r\necho stub\r\n")
+        zf.writestr(f"{base}/lib/pcml-cli-{version}.jar", "not a real jar, just a stand-in")
     return buffer.getvalue()
 
 
@@ -231,6 +233,23 @@ class InstallScriptTestMixin:
         self.assertFalse((self.folder / "1.0.0").exists())
         self.assertFalse((self.folder / "bin" / self.launcher_name()).exists())
         self.assertTrue((self.folder / "not-mine.txt").is_file())
+
+    def test_uninstall_does_not_touch_a_foreign_folder_with_a_version_file(self):
+        # Review point 2: "has a file named VERSION" is not enough; a foreign folder must survive, even one that
+        # merely looks the part (its own name matches its own VERSION file's content) but lacks the rest of the shape.
+        self.server.add_version("1.0.0", self.EXT, self.build("1.0.0"))
+        self.run_install(*self.install_args(version="1.0.0"))
+        foreign = self.folder / "my-project"
+        foreign.mkdir()
+        (foreign / "VERSION").write_text("1.2.3")  # an unrelated project's own convention; does not match its folder name
+        lookalike = self.folder / "2.0.0"  # name matches its VERSION content, but it is not a real install (no bin/, no lib/)
+        lookalike.mkdir()
+        (lookalike / "VERSION").write_text("2.0.0")
+        code, out, err = self.run_install(*self.install_args(uninstall=True))
+        self.assertEqual(0, code, err)
+        self.assertTrue((self.folder / "my-project" / "VERSION").is_file())
+        self.assertTrue((self.folder / "2.0.0" / "VERSION").is_file())
+        self.assertFalse((self.folder / "1.0.0").exists())
 
 
 class InstallShTest(InstallScriptTestMixin, unittest.TestCase):
