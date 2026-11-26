@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """Generates docs/reference/cli/index.md from the tool's own --help and help <command> output (specs/documentation.md
 section 7), by running the packaged jar directly (no launcher needed to read help text).
 

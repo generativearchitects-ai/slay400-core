@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "docs:examples runner tools (runner.json)",
+  "description": "Everything scripts/docs/run_examples.py needs to know about the tools a repository's examples install, so that the script itself names no repository, archive, URL or environment variable (kickoff 18). One repository's file is its own `own: true` tool plus any tool it only consumes (`own: false`).",
+  "type": "object",
+  "required": ["tools"],
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/tool" }
+    }
+  },
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "required": ["name", "archive", "releaseArchiveName", "installCommand", "localScript", "env", "own"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The tool's own name, as a reader types it (for example \"slay400\"). Used to build the version marker of a tool that is not this repository's own.",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "archive": {
+          "description": "Where the tool's distribution archive comes from, for exactly one clean run.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["path"],
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "A path in this repository to the archive just built, relative to the repository root, with the version marked as the literal text \"{version}\". The version itself comes from this repository's own root pom.xml. The exact file this names must exist.",
+                  "pattern": "\\{version\\}"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["env"],
+              "additionalProperties": false,
+              "properties": {
+                "env": {
+                  "type": "string",
+                  "description": "The name of an environment variable holding the path of an archive obtained outside this script (how is the business of the repository that sets it). The archive's own file name must match releaseArchiveName, which is how its version is read.",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                }
+              }
+            }
+          ]
+        },
+        "releaseArchiveName": {
+          "type": "string",
+          "description": "The name the archive has in a real release, with the version marked as the literal text \"{version}\" (for example \"slay400-{version}.tar.gz\"). Used to lay out the local stand-in for the releases the way the install script expects, and, for an archive named by an environment variable, to read its version back out of its own file name.",
+          "pattern": "\\{version\\}"
+        },
+        "installCommand": {
+          "type": "string",
+          "description": "The install command exactly as a page shows it (the literal line of text, matched exactly, not as a pattern)."
+        },
+        "localScript": {
+          "type": "string",
+          "description": "The script run in place of installCommand, as a path inside this repository (never absolute, never leaving it)."
+        },
+        "env": {
+          "type": "object",
+          "description": "The names of the two environment variables through which installCommand's replacement is pointed at the local stand-in.",
+          "required": ["releasesUrl", "releasesApi"],
+          "additionalProperties": false,
+          "properties": {
+            "releasesUrl": {
+              "type": "string",
+              "description": "The environment variable naming where release archives are downloaded from.",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "releasesApi": {
+              "type": "string",
+              "description": "The environment variable naming where the latest-release API is reached.",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          }
+        },
+        "own": {
+          "type": "boolean",
+          "description": "Whether this is the repository's own tool. Its version is normalised to the literal \"<version>\"; any other tool's version is normalised to \"<name version>\", carrying its name, so that two versions in one output stay apart."
+        }
+      }
+    }
+  }
+}

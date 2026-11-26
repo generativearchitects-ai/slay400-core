@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """Generates docs/reference/diagnostics/index.md: every diagnostic code the modules can produce, with severity,
 the message as printed, and hand-written notes (meaning, what to do) from docs/reference/_notes/diagnostics/
 (specs/documentation.md section 7). A code found in the source with no notes file fails the check.

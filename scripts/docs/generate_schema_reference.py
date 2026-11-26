@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """Generates the api.yaml and repository-defaults reference pages from the JSON Schemas pcml-overlay publishes
 (specs/documentation.md section 7), with a complete example of each from docs/reference/_notes/.
 

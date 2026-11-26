@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """docs:snippets (specs/documentation.md section 5, kickoff 16): every marked code block in a page must be exactly
 the text of the example file (or region) it names. A fenced code block with no marker is an error, except one
 fenced as "text" (a shape, not a real output -- whether the sentence before it actually says so is not checked

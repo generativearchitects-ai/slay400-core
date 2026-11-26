@@ -1,3 +1,4 @@
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """Shared by the documentation checks: what counts as a page, and its front matter.
 
 specs/documentation.md section 2: every .md file under docs/, except README.md files, everything under examples/
