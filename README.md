@@ -107,9 +107,20 @@ curl -fsSL https://raw.githubusercontent.com/generativearchitects-ai/slay400-cor
 iwr https://raw.githubusercontent.com/generativearchitects-ai/slay400-core/main/install.ps1 -OutFile install.ps1; .\install.ps1
 ```
 
-Both scripts take an optional version and install folder (default: the latest release, and `~/.slay400`), and an
-`uninstall` option; run them with `--help` for details, or read `install.sh` / `install.ps1` directly, they are plain
-shell and PowerShell. At the end, each prints the line to add to `PATH` and how to check the install (`slay400 --version`).
+With no version, both scripts install the latest stable release; if there is none yet, the newest release that is
+not a draft (which may be a pre-release), printing one line saying so. An explicit version skips that lookup:
+
+```
+curl -fsSL https://raw.githubusercontent.com/generativearchitects-ai/slay400-core/main/install.sh | sh -s -- 0.1.0-alpha.1
+```
+
+```powershell
+iwr https://raw.githubusercontent.com/generativearchitects-ai/slay400-core/main/install.ps1 -OutFile install.ps1; .\install.ps1 -Version 0.1.0-alpha.1
+```
+
+Both scripts also take an install folder (default: `~/.slay400`) and an `uninstall` option; run them with `--help`
+for details, or read `install.sh` / `install.ps1` directly, they are plain shell and PowerShell. At the end, each
+prints the line to add to `PATH` and how to check the install (`slay400 --version`).
 
 Or download and unpack the archive by hand: the `.tar.gz` or `.zip` of a version's
 [GitHub Release](https://github.com/generativearchitects-ai/slay400-core/releases), unpacked anywhere, with its `bin`

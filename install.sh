@@ -7,9 +7,10 @@
 # Usage: install.sh [VERSION] [FOLDER]
 #        install.sh uninstall [FOLDER]
 #
-# VERSION defaults to the latest GitHub release. FOLDER defaults to ~/.slay400. Needs curl or wget, sha256sum or
-# shasum, and tar. Reads SLAY400_RELEASES_URL and SLAY400_RELEASES_API only to let tests point at a local stand-in
-# instead of the real GitHub endpoints; leave both unset for a real install.
+# VERSION defaults to the latest stable release, or the newest pre-release if there is no stable one yet. FOLDER
+# defaults to ~/.slay400. Needs curl or wget, sha256sum or shasum, and tar. Reads SLAY400_RELEASES_URL and
+# SLAY400_RELEASES_API only to let tests point at a local stand-in instead of the real GitHub endpoints; leave both
+# unset for a real install.
 set -eu
 
 REPO="generativearchitects-ai/slay400-core"
@@ -33,15 +34,34 @@ fetch() {
   fi
 }
 
-fetch_text() {
-  # fetch_text URL -- prints the body to stdout
+fetch_status_body() {
+  # fetch_status_body URL -- prints "<status>\n<body>" to stdout for any HTTP response (2xx/4xx/5xx); returns
+  # nonzero only when the request could not be made at all (DNS, connection refused, timeout). A file:// URL (used
+  # only by tests, and by docs:examples' local stand-in for a release) has no HTTP status: reading it is reported
+  # as "200", a missing file as a failure -- the same two outcomes curl/wget already give every other fetch here.
+  url="$1"
+  case "$url" in
+    file://*)
+      path="${url#file://}"
+      [ -r "$path" ] || return 1
+      printf '200\n%s' "$(cat "$path")"
+      return 0
+      ;;
+  esac
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$1"
+    raw="$(curl -sSL -w '\n%{http_code}' "$url")" || return 1
+    status="$(printf '%s\n' "$raw" | tail -n 1)"
+    body="$(printf '%s\n' "$raw" | sed '$d')"
   elif command -v wget >/dev/null 2>&1; then
-    wget -q -O - "$1"
+    headers="$(mktemp)"
+    body="$(wget -q -O - --server-response "$url" 2>"$headers")" || true
+    status="$(awk '/HTTP\// { code = $2 } END { print code }' "$headers")"
+    rm -f "$headers"
+    [ -n "$status" ] || return 1
   else
-    fail "neither curl nor wget was found; cannot download $1"
+    fail "neither curl nor wget was found; cannot download $url"
   fi
+  printf '%s\n%s' "$status" "$body"
 }
 
 sha256_of() {
@@ -54,11 +74,70 @@ sha256_of() {
   fi
 }
 
-latest_version() {
-  body="$(fetch_text "$RELEASES_API")" || fail "could not reach $RELEASES_API to find the latest version"
-  tag="$(printf '%s\n' "$body" | sed -n 's/.*"tag_name": *"\(v[^"]*\)".*/\1/p' | head -n 1)"
-  [ -n "$tag" ] || fail "could not read a tag_name from $RELEASES_API"
+tag_from_json() {
+  # tag_from_json BODY CONTEXT -- the version named by one JSON object's "tag_name" field, without its leading "v".
+  tag="$(printf '%s\n' "$1" | sed -n 's/.*"tag_name": *"\(v[^"]*\)".*/\1/p' | head -n 1)"
+  [ -n "$tag" ] || fail "could not read a tag_name from $2"
   printf '%s\n' "$tag" | sed 's/^v//'
+}
+
+first_non_draft_tag() {
+  # first_non_draft_tag BODY -- the first "tag_name" in a JSON array of releases whose own "draft" is false, in
+  # document order (GitHub's list endpoint returns releases sorted by creation time, descending -- newest first),
+  # without its leading "v"; nothing if there is none. Not a real JSON parser, like the rest of this script's
+  # reading of "tag_name": pairs each tag_name with the "draft" value that follows it and precedes the next
+  # tag_name, which is how GitHub always serializes a release's own fields (never interleaved with another's).
+  printf '%s' "$1" | tr '\n' ' ' | grep -oE '"tag_name" *: *"v[^"]*"|"draft" *: *(true|false)' |
+    { pending=""
+      while IFS= read -r line; do
+        case "$line" in
+          '"tag_name"'*)
+            pending="$(printf '%s\n' "$line" | sed -n 's/.*"\(v[^"]*\)".*/\1/p')"
+            ;;
+          '"draft"'*)
+            if [ -n "$pending" ]; then
+              case "$line" in
+                *false*)
+                  printf '%s\n' "$pending" | sed 's/^v//'
+                  break
+                  ;;
+                *)
+                  pending=""
+                  ;;
+              esac
+            fi
+            ;;
+        esac
+      done
+      true
+    }
+}
+
+latest_non_draft_release() {
+  # No stable release exists ($RELEASES_API answered 404): fall back to the newest release that is not a draft,
+  # which may be a pre-release -- said so in one line, since a reader who asked for "the latest" should know which
+  # kind they got. GitHub's own "latest" endpoint already excludes both drafts and pre-releases, so reaching here
+  # at all means there is no stable release yet.
+  list_api="${RELEASES_API%/latest}"
+  response="$(fetch_status_body "$list_api")" || fail "could not reach $RELEASES_API to find the latest version"
+  status="$(printf '%s\n' "$response" | head -n 1)"
+  [ "$status" = "200" ] || fail "could not reach $RELEASES_API to find the latest version"
+  body="$(printf '%s\n' "$response" | sed '1d')"
+  tag="$(first_non_draft_tag "$body")"
+  [ -n "$tag" ] || fail "no release exists yet at $list_api"
+  echo "slay400: no stable release exists yet; installing the pre-release $tag" >&2
+  printf '%s\n' "$tag"
+}
+
+latest_version() {
+  response="$(fetch_status_body "$RELEASES_API")" || fail "could not reach $RELEASES_API to find the latest version"
+  status="$(printf '%s\n' "$response" | head -n 1)"
+  body="$(printf '%s\n' "$response" | sed '1d')"
+  case "$status" in
+    200) tag_from_json "$body" "$RELEASES_API" ;;
+    404) latest_non_draft_release ;;
+    *) fail "could not reach $RELEASES_API to find the latest version" ;;
+  esac
 }
 
 # A sub-folder is one of our installs, beyond doubt, only when its name is the content of its own VERSION file and
@@ -136,7 +215,8 @@ usage() {
   echo "Usage: install.sh [VERSION] [FOLDER]"
   echo "       install.sh uninstall [FOLDER]"
   echo
-  echo "VERSION defaults to the latest GitHub release. FOLDER defaults to $DEFAULT_FOLDER."
+  echo "VERSION defaults to the latest stable release, or the newest pre-release if there is no stable one yet."
+  echo "FOLDER defaults to $DEFAULT_FOLDER."
 }
 
 folder="$DEFAULT_FOLDER"
