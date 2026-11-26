@@ -1,3 +1,4 @@
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """Shared by docs:snippets and docs:examples: snippet markers in a page, and the source they name
 (specs/documentation.md section 5).
 """

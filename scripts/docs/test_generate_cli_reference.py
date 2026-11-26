@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """Tests of generate_cli_reference.py's find_jar(). render() itself needs a real built jar and a real `java`
 on PATH, and is proven by actually running the generator against this repository's build (see the kickoff 16
 pull request description), not re-created here with a fake jar.

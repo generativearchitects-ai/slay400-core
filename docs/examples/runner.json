@@ -1,0 +1,13 @@
+{
+  "tools": [
+    {
+      "name": "slay400",
+      "archive": { "path": "pcml-launcher/target/pcml-launcher-{version}.tar.gz" },
+      "releaseArchiveName": "slay400-{version}.tar.gz",
+      "installCommand": "curl -fsSL https://raw.githubusercontent.com/generativearchitects-ai/slay400-core/main/install.sh | sh",
+      "localScript": "install.sh",
+      "env": { "releasesUrl": "SLAY400_RELEASES_URL", "releasesApi": "SLAY400_RELEASES_API" },
+      "own": true
+    }
+  ]
+}

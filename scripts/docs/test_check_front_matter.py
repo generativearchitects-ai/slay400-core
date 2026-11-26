@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """Tests of check_front_matter.py. Run with: python3 -m unittest discover -s scripts/docs"""
 import tempfile
 import unittest

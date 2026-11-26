@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Apache License 2.0. Origin: slay400-core, https://github.com/generativearchitects-ai/slay400-core (decision 151).
 """The front matter and page-shape checks of specs/documentation.md sections 2 and 4 (kickoff 16).
 
 Checked for every page (_pages.pages()):
