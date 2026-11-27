@@ -3,6 +3,11 @@ name: release
 # A tag v<version> builds, signs and uploads a release to the Central Portal for validation (kickoff 12, decision 92). It does
 # not publish: the owner looks at the deployment in the Central Portal and publishes it there by hand.
 #
+# A release takes its version from the tag it was pushed as, nowhere else (kickoff 20, decision 155): main always carries a
+# snapshot version, and this job sets the release version with versions:set in its own checkout only, never committing or
+# pushing it. Every artifact, the archive's name and top folder, its VERSION file and what "slay400 --version" prints all
+# carry the tag's version because of that one step, not because anything in the repository names a release version.
+#
 # Safety:
 #  * It starts only from a pushed tag, never for a pull request, and never with pull_request_target.
 #  * It runs in the GitHub environment "release", which the owner protects with a required reviewer.
@@ -10,8 +15,12 @@ name: release
 #  * The secrets are CENTRAL_TOKEN_USERNAME, CENTRAL_TOKEN_PASSWORD, GPG_PRIVATE_KEY and GPG_PASSPHRASE of that environment,
 #    and no step prints them. The private key is passed to the signer in an environment variable and stays in memory: no key
 #    ring, no file. When a secret is missing, the job stops with one line that says which.
-#  * The tag must be v<version>, the version must not be a snapshot, and every module must have it (scripts/check_release_tag.py).
-#  * The tagged commit must be an ancestor of origin/main: a tag on a commit that is not in main is never released.
+#  * scripts/check_release_tag.py runs first, before any secret is used: the tag must be v<MAJOR.MINOR.PATCH>, optionally with
+#    a pre-release part, not itself a snapshot; the tagged commit must be an ancestor of origin/main (a tag on a commit that is
+#    not in main is never released); its line (MAJOR.MINOR.PATCH) must be the line of the snapshot in the POMs; every module
+#    must share that snapshot version; no other tag of this name may already point elsewhere; and the version must not already
+#    be on Maven Central (skipped, not refused, if Central's public search cannot be reached).
+#  * The workflow never pushes to a branch and never moves or creates a tag.
 #  * No build cache: a job that holds the secrets takes nothing from a cache that other jobs write.
 
 on:
@@ -29,28 +38,20 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: release
-    # contents: write, in this job only (the workflow default above stays read): kickoff 17 attaches the two
-    # distribution archives to a draft GitHub Release of the tag, which needs it. Nothing else changes.
+    # contents: write, in this job only (the workflow default above stays read): finds or creates the GitHub Release of the
+    # tag and attaches the distribution archives to it (kickoff 17; found-or-made, kickoff 20). Nothing else changes.
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          # The whole history, to tell whether the tagged commit is in main.
+          # The whole history, so the tagged commit's ancestry can be checked against origin/main below.
           fetch-depth: 0
 
-      - name: Check the tag
-        env:
-          TAG: ${{ github.ref_name }}
-        run: python3 scripts/check_release_tag.py "$TAG"
-
-      - name: Check that the tagged commit is in main
+      - name: Check that the tag can be released
         run: |
           git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::The tagged commit $GITHUB_SHA is not an ancestor of origin/main. Tag a commit that is in main. Nothing was built or uploaded."
-            exit 1
-          fi
+          python3 scripts/check_release_tag.py "$GITHUB_REF_NAME"
 
       - name: Check that the secrets exist
         env:
@@ -78,6 +79,11 @@ jobs:
           server-username: CENTRAL_TOKEN_USERNAME
           server-password: CENTRAL_TOKEN_PASSWORD
 
+      # The one place the release version is set (kickoff 20, decision 155): every module, pcml-bom included, in this
+      # checkout only. Nothing is committed or pushed; main keeps its snapshot version throughout.
+      - name: Set the version from the tag
+        run: ./mvnw -B versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DprocessAllModules=true -DgenerateBackupPoms=false
+
       # The whole build with its tests, as for any commit. It also makes the test jars that some modules share, which the
       # release profile leaves out of what is published.
       - name: Build and test
@@ -99,7 +105,13 @@ jobs:
       # name every other published file follows; the GitHub Release asset a person downloads uses the product name
       # instead (slay400-<version>.tar.gz), matching the archive's own top folder and install.sh / install.ps1,
       # which download exactly that name. No secret is used: GH_TOKEN is the default token of this job.
-      - name: Draft a GitHub Release with the distribution archives
+      #
+      # Found or made, never duplicated (kickoff 20, point 4): a release for this tag may already exist, made by hand
+      # on GitHub's release page before this workflow ran; scripts/github_release.py attaches these four files to it,
+      # replacing any of the same name, instead of creating a second release. A version with a pre-release part is
+      # marked a pre-release only when this call is the one that creates it; an existing release's draft, pre-release
+      # and "latest" flags are never changed.
+      - name: Attach the distribution archives to the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -111,6 +123,6 @@ jobs:
           (cd release-assets && for ext in tar.gz zip; do
             sha256sum "slay400-$version.$ext" > "slay400-$version.$ext.sha256"
           done)
-          gh release create "$GITHUB_REF_NAME" release-assets/* \
-            --draft --title "$GITHUB_REF_NAME" \
-            --notes "Draft release of $GITHUB_REF_NAME. Review the attached archives and the deployment in the Central Portal, then publish both by hand."
+          prerelease_flag=""
+          case "$version" in *-*) prerelease_flag="--prerelease" ;; esac
+          python3 scripts/github_release.py --repo "$GITHUB_REPOSITORY" --tag "$GITHUB_REF_NAME" $prerelease_flag release-assets/*
