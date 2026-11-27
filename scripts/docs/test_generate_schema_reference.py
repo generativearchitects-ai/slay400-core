@@ -6,6 +6,21 @@ import unittest
 import generate_schema_reference as gen
 
 
+class EscapeProseTest(unittest.TestCase):
+
+    def test_angle_brackets_become_entities(self):
+        self.assertEqual("a literal, or ${environment.&lt;name&gt;}", gen.escape_prose("a literal, or ${environment.<name>}"))
+
+    def test_a_comment_open_becomes_an_entity_too(self):
+        self.assertEqual("x &lt;!-- y", gen.escape_prose("x <!-- y"))
+
+    def test_an_ampersand_is_escaped_first_so_it_is_not_doubled(self):
+        self.assertEqual("a &amp; b &lt;c&gt;", gen.escape_prose("a & b <c>"))
+
+    def test_plain_text_is_unchanged(self):
+        self.assertEqual("a plain description", gen.escape_prose("a plain description"))
+
+
 class ResolveTest(unittest.TestCase):
 
     def test_a_node_with_no_ref_is_returned_as_is(self):
@@ -43,6 +58,17 @@ class RowsTest(unittest.TestCase):
         properties = {"when": {"$ref": "#/$defs/When"}}
         self.assertEqual([("when", "object", "a condition")], gen.rows(properties, defs))
 
+    def test_a_description_with_a_placeholder_is_escaped_so_it_cannot_be_read_as_a_tag(self):
+        # kickoff 19: a table cell taken straight from the schema (never typed by a page author) must not reach
+        # the page as raw HTML, for example "${environment.<name>}".
+        properties = {"inject": {"type": "object", "description": "a literal, or ${environment.<name>}"}}
+        self.assertEqual([("inject", "object", "a literal, or ${environment.&lt;name&gt;}")],
+                          gen.rows(properties, {}))
+
+    def test_a_description_with_a_comment_open_and_an_ampersand_is_escaped(self):
+        properties = {"x": {"type": "string", "description": "<!-- not a comment --> & more"}}
+        self.assertEqual([("x", "string", "&lt;!-- not a comment --&gt; &amp; more")], gen.rows(properties, {}))
+
 
 class RenderTest(unittest.TestCase):
 
@@ -76,6 +102,27 @@ class RenderTest(unittest.TestCase):
         self.assertIn("A schema.", rendered)
         self.assertIn("name: foo", rendered)
         self.assertIn("Do not edit by hand", rendered)
+
+    def test_the_schemas_own_top_level_description_is_also_escaped(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        real_repo = gen.REPO
+        with tempfile.TemporaryDirectory() as tmp:
+            gen.REPO = Path(tmp)
+            self.addCleanup(lambda: setattr(gen, "REPO", real_repo))
+            schema_path = Path(tmp) / "s.json"
+            schema_path.write_text(json.dumps({
+                "description": "Uses ${environment.<name>} placeholders.",
+                "properties": {},
+            }), encoding="utf-8")
+            example_path = Path(tmp) / "example.yaml"
+            example_path.write_text("x: 1\n", encoding="utf-8")
+            page = {"schema": schema_path, "example": example_path, "front_matter": "---\ntitle: T\n---\n",
+                    "heading": "T", "intro": "An intro."}
+            rendered = gen.render(page)
+        self.assertIn("Uses ${environment.&lt;name&gt;} placeholders.", rendered)
+        self.assertNotIn("${environment.<name>}", rendered)
 
 
 if __name__ == "__main__":

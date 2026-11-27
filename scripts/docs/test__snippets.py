@@ -50,6 +50,41 @@ class SnippetsInTest(unittest.TestCase):
         self.assertEqual({}, _snippets.regions_in(script))
 
 
+class StripCodeTest(unittest.TestCase):
+
+    def test_a_fenced_block_is_blanked(self):
+        text = "before\n```text\n<value> & <!-- not a comment -->\n```\nafter"
+        stripped = _snippets.strip_code(text)
+        self.assertIn("before", stripped)
+        self.assertIn("after", stripped)
+        self.assertNotIn("<value>", stripped)
+        self.assertNotIn("<!--", stripped)
+
+    def test_an_inline_code_span_is_blanked(self):
+        text = "prose `<value>` more prose"
+        stripped = _snippets.strip_code(text)
+        self.assertNotIn("<value>", stripped)
+        self.assertIn("prose", stripped)
+        self.assertIn("more prose", stripped)
+
+    def test_prose_outside_code_is_left_untouched(self):
+        text = "a plain sentence with no code at all"
+        self.assertEqual(text, _snippets.strip_code(text))
+
+    def test_blanking_keeps_the_same_length_and_line_count(self):
+        text = "one\n```text\ntwo <x>\nthree\n```\nfour `<y>` five"
+        stripped = _snippets.strip_code(text)
+        self.assertEqual(len(text), len(stripped))
+        self.assertEqual(text.count("\n"), stripped.count("\n"))
+
+    def test_backticks_inside_a_fenced_block_do_not_confuse_inline_code_detection(self):
+        text = "```text\nshowing `backticks` as text\n```\nreal prose `<value>` here"
+        stripped = _snippets.strip_code(text)
+        self.assertNotIn("<value>", stripped)
+        self.assertIn("real prose", stripped)
+        self.assertIn("here", stripped)
+
+
 class ResolveTest(unittest.TestCase):
 
     def setUp(self):

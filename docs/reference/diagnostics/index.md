@@ -19,7 +19,9 @@ Severity: **error**. First seen at `pcml-diff/src/main/java/ai/generativearchite
 
 It prints:
 
-> API <value> has breaking changes but its version goes from <value> to <value>; the <value>major<value>minor<value> version must increase. Breaking changes: <value>; 
+```text
+API <value> has breaking changes but its version goes from <value> to <value>; the <value>major<value>minor<value> version must increase. Breaking changes: <value>; 
+```
 
 **Meaning:** `diff` found breaking changes between two versions of an API, but the new version number was not raised by a major (or, before 1.0, minor) step. **What to do:** raise the version by at least a major step, or confirm the changes are not actually breaking.
 
@@ -29,7 +31,9 @@ Severity: **info**. First seen at `pcml-diff/src/main/java/ai/generativearchitec
 
 It prints:
 
-> (message built from a value, not literal text)
+```text
+(message built from a value, not literal text)
+```
 
 **Meaning:** an informational summary of what changed in an API between two versions (added, removed or modified fields and operations), printed by `diff` alongside any error or warning. **What to do:** nothing; read it to confirm the change is the one you intended.
 
@@ -39,7 +43,9 @@ Severity: **error**. First seen at `pcml-diff/src/main/java/ai/generativearchite
 
 It prints:
 
-> The version of API <value> is <value>, which is lower than the released version 
+```text
+The version of API <value> is <value>, which is lower than the released version 
+```
 
 **Meaning:** `diff` found the new version of an API is not actually higher than the released one, or not raised by enough for the kind of change made (lower than the release, unchanged from a released pre-release that changed, or raised by less than a compatible change needs). **What to do:** raise `version` in `api.yaml` to a number higher than the released one, by the step the kind of change needs.
 
@@ -49,7 +55,9 @@ Severity: **warning**. First seen at `pcml-diff/src/main/java/ai/generativearchi
 
 It prints:
 
-> API <value> is in the released repository and not in the current one
+```text
+API <value> is in the released repository and not in the current one
+```
 
 **Meaning:** `diff` found an API that exists in the released repository but not in the current one -- it was removed, which is a breaking change for any caller still using it. **What to do:** confirm the removal is intentional; if it is not, restore the API's folder.
 
@@ -59,7 +67,9 @@ Severity: **info**. First seen at `pcml-diff/src/main/java/ai/generativearchitec
 
 It prints:
 
-> API <value> is new in version 
+```text
+API <value> is new in version 
+```
 
 **Meaning:** an informational note from `diff` that this API did not exist in the released repository: it is new in this version. **What to do:** nothing; read it to confirm the addition is the one you intended.
 
@@ -69,7 +79,9 @@ Severity: **error**. First seen at `pcml-bundle/src/main/java/ai/generativearchi
 
 It prints:
 
-> (message built from a value, not literal text)
+```text
+(message built from a value, not literal text)
+```
 
 **Meaning:** `bundle` refused to write the bundle: a structural problem with what would be packed (two files at the same path, a file colliding with the manifest or descriptor, too many entries or bytes for the format's limits, a source file outside the repository or unreadable, or a path the bundle layout does not allow). **What to do:** read the message for which file and which rule, and fix the repository or the emitted output before bundling again.
 
@@ -79,7 +91,9 @@ Severity: **error**. First seen at `pcml-tasks/src/main/java/ai/generativearchit
 
 It prints:
 
-> The emitter '<value>' named in gateway.yaml is not available
+```text
+The emitter '<value>' named in gateway.yaml is not available
+```
 
 **Meaning:** `gateway.yaml`'s `emitters` list names an emitter that `generate` or `bundle` does not know. **What to do:** use one of `descriptor`, `openapi` or `mock`, or remove the entry.
 
@@ -89,7 +103,9 @@ Severity: **error**. First seen at `pcml-tasks/src/main/java/ai/generativearchit
 
 It prints:
 
-> Two emitted files have the path 
+```text
+Two emitted files have the path 
+```
 
 **Meaning:** two emitters wrote a file at the same path under the output folder, so one would silently overwrite the other. **What to do:** this points at a bug in the emitters named in `gateway.yaml`, not at the overlay; report it.
 
@@ -99,7 +115,9 @@ Severity: **error**. First seen at `pcml-cli/src/main/java/ai/generativearchitec
 
 It prints:
 
-> The file <value> could not be read: 
+```text
+The file <value> could not be read: 
+```
 
 **Meaning:** a file `annotate`, `init` or `generate` needed to read or write could not be reached (permissions, a missing folder, a full disk). **What to do:** fix the underlying filesystem problem the rest of the message names, and run the command again.
 
@@ -109,7 +127,9 @@ Severity: **warning**. First seen at `pcml-cli/src/main/java/ai/generativearchit
 
 It prints:
 
-> Skipped: 
+```text
+Skipped: 
+```
 
 **Meaning:** `init` skipped a folder while walking the repository -- either it has no PCML file, or it leads outside the repository. **What to do:** nothing if the folder is not meant to hold an API; otherwise check its location and that it has a `.pcml` file.
 
@@ -119,7 +139,9 @@ Severity: **warning**. First seen at `pcml-cli/src/main/java/ai/generativearchit
 
 It prints:
 
-> The file <value> was changed while the questions were asked, so nothing was written to it
+```text
+The file <value> was changed while the questions were asked, so nothing was written to it
+```
 
 **Meaning:** while `annotate` was asking its questions for a file, something else changed that same `api.yaml` on disk, so the answers no longer apply to the current content and were not written. **What to do:** run `annotate` again; nothing was lost, the file is exactly as it was before this attempt.
 
@@ -129,7 +151,9 @@ Severity: **error**. First seen at `pcml-mock/src/main/java/ai/generativearchite
 
 It prints:
 
-> (message built from a value, not literal text)
+```text
+(message built from a value, not literal text)
+```
 
 **Meaning:** a mock definition file could not be read: it is not valid JSON/YAML, could not be read from disk, or its structure does not match what a mock file expects. **What to do:** read the message for the specific reason and fix the mock file.
 
@@ -139,7 +163,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> The mock file <value> is not named after an operation of this API: mock files are named <operation id>.yaml, and the operations are 
+```text
+The mock file <value> is not named after an operation of this API: mock files are named <operation id>.yaml, and the operations are 
+```
 
 **Meaning:** a file under `mock/` is not named after one of the API's operation ids, so it cannot be matched to an operation. **What to do:** rename the file to `<operation id>.yaml`, or remove it if it is not meant to be a mock.
 
@@ -149,7 +175,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> (message built from a value, not literal text)
+```text
+(message built from a value, not literal text)
+```
 
 **Meaning:** a mock case's `when` names a field that the operation does not have, or the mock file itself does not match the mock schema. **What to do:** check the field name against the PCML and the overlay, and fix the mock file.
 
@@ -159,7 +187,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> (message built from a value, not literal text)
+```text
+(message built from a value, not literal text)
+```
 
 **Meaning:** a mock case's `returns` sets a field with a value that does not fit the field (too long, the wrong kind, out of range). **What to do:** fix the value in the mock file to one the real field could actually hold.
 
@@ -169,7 +199,9 @@ Severity: **warning**. First seen at `pcml-codec/src/main/java/ai/generativearch
 
 It prints:
 
-> (message built from a value, not literal text)
+```text
+(message built from a value, not literal text)
+```
 
 **Meaning:** a mock case can never match, because an earlier case in the same file has no `when` (so it always matches first) or has the exact same `when` as this one. **What to do:** reorder the cases so the more specific one comes first, or give this case a `when` that distinguishes it.
 
@@ -179,7 +211,9 @@ Severity: **warning**. First seen at `pcml-codec/src/main/java/ai/generativearch
 
 It prints:
 
-> (message built from a value, not literal text)
+```text
+(message built from a value, not literal text)
+```
 
 **Meaning:** a mock case gives a count field a value that does not match the number of elements actually given for the array it counts. **What to do:** set the count field to the real number of elements in the mock case's array, or remove it and let the count be derived.
 
@@ -189,7 +223,9 @@ Severity: **warning**. First seen at `pcml-overlay/src/main/java/ai/generativear
 
 It prints:
 
-> ; treated as 'both'
+```text
+; treated as 'both'
+```
 
 **Meaning:** an `inputoutput` parameter has no direction yet (`request`, `response`, `both` or `internal`) in `api.yaml`, and `defaults.inputoutput` is `fail`, so the repository cannot be built until it is given one. **What to do:** run `annotate`, or add `direction` to the parameter by hand.
 
@@ -199,7 +235,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
->  is not in the PCML of program 
+```text
+ is not in the PCML of program 
+```
 
 **Meaning:** `api.yaml` configures a parameter, in `inject` or `parameters`, by a name that is not a field of the program in the PCML. **What to do:** check the spelling against the PCML's `<data name="...">` and fix the key in `api.yaml`.
 
@@ -209,7 +247,9 @@ Severity: **error**. First seen at `pcml-validation/src/main/java/ai/generativea
 
 It prints:
 
-> (message built from a value, not literal text)
+```text
+(message built from a value, not literal text)
+```
 
 **Meaning:** a configuration problem in how an operation's parameters are set up for encoding -- an example, injected value or error mapping that does not fit the field it names (not a valid value for the field's semantic type, too long, not encodable, or a field kind that cannot carry it). **What to do:** read the message for the field and the specific mismatch, and fix the overlay's `example`, `inject` or `error` entry.
 
@@ -219,7 +259,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> '<value>' is bound to the path but the route has no placeholder {<value>}
+```text
+'<value>' is bound to the path but the route has no placeholder {<value>}
+```
 
 **Meaning:** a parameter is set to `in: path`, but its name does not appear as a `{placeholder}` in `route`. **What to do:** add the placeholder to `route`, or change where the parameter is read from.
 
@@ -229,7 +271,9 @@ Severity: **warning**. First seen at `pcml-validation/src/main/java/ai/generativ
 
 It prints:
 
-> Operation <value>, field <value>: the response array has <value> elements and no trim, so every call returns all of them; set 'trim' (at least <value> elements is large)
+```text
+Operation <value>, field <value>: the response array has <value> elements and no trim, so every call returns all of them; set 'trim' (at least <value> elements is large)
+```
 
 **Meaning:** a response array has no `trim` and enough elements that every call would return all of them, which can make a response unexpectedly large. **What to do:** set `trim` on the field in `api.yaml` if only part of the array is normally needed, or ignore the warning if returning everything is intended.
 
@@ -239,7 +283,9 @@ Severity: **warning**. First seen at `pcml-validation/src/main/java/ai/generativ
 
 It prints:
 
-> Operation <value> has no error mapping: a business error reported by the program is returned as a success
+```text
+Operation <value> has no error mapping: a business error reported by the program is returned as a success
+```
 
 **Meaning:** the operation has no `error` mapping, so a business error the program reports in its own fields (not a crash) comes back to the caller as if the call succeeded. **What to do:** add an `error` block to the operation in `api.yaml` if the program can report a business error, or ignore the warning if it never does.
 
@@ -249,7 +295,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> Cannot read file as UTF-8 text: 
+```text
+Cannot read file as UTF-8 text: 
+```
 
 **Meaning:** `api.yaml` or `gateway.yaml` is not valid YAML at all (a syntax error), so nothing in it could be read. **What to do:** fix the YAML syntax at the position the rest of the message names; a YAML-aware editor will usually point at the same spot.
 
@@ -259,7 +307,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> Unknown key '<value>' in <value>; allowed keys: <value>, 
+```text
+Unknown key '<value>' in <value>; allowed keys: <value>, 
+```
 
 **Meaning:** a key in `api.yaml` or `gateway.yaml` is not one the schema for that file allows at that position (a typo, or a key that belongs somewhere else). **What to do:** check the spelling against the allowed keys the message lists, or against the reference page for the file.
 
@@ -269,7 +319,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> The default id '<value>' (the program name in lower case) is not a valid id: set 'id'
+```text
+The default id '<value>' (the program name in lower case) is not a valid id: set 'id'
+```
 
 **Meaning:** an operation's `id` was not given explicitly, and the default (the program name, lower-cased) is not a valid id -- often because the program name itself is not a valid identifier, or a route-only form left `route` without a leading `/`. **What to do:** set `id` explicitly in `api.yaml` to a valid identifier.
 
@@ -279,7 +331,9 @@ Severity: **error**. First seen at `pcml-cli/src/main/java/ai/generativearchitec
 
 It prints:
 
-> Repository root not found or not a directory
+```text
+Repository root not found or not a directory
+```
 
 **Meaning:** a struct field's type, in the PCML, refers back to the struct itself (directly or through another struct), which cannot be represented as a finite API shape. **What to do:** this is a shape of the PCML the overlay cannot expose; change the program's PCML, or mark the field `hidden` if it does not need to be exposed.
 
@@ -289,7 +343,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> '<value>' and '<value>' share the exposed name '<value>'
+```text
+'<value>' and '<value>' share the exposed name '<value>'
+```
 
 **Meaning:** two parameters of the same operation were given the same exposed `name`, so the API would have two fields that collide. **What to do:** give one of them a different `name` in `api.yaml`.
 
@@ -299,7 +355,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> Parameter '<value>' is a struct or an array and cannot be sent with <value>: use POST, PUT or PATCH
+```text
+Parameter '<value>' is a struct or an array and cannot be sent with <value>: use POST, PUT or PATCH
+```
 
 **Meaning:** a parameter that is a struct or an array is bound to a place (for example a query parameter) that can only carry a simple value, on a method like `GET` that has no body. **What to do:** change the operation's `method` to one that has a body (`POST`, `PUT` or `PATCH`), or move the parameter so it is carried in the body.
 
@@ -309,7 +367,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> Direction '<value>' of parameter '<value>' contradicts its PCML usage 
+```text
+Direction '<value>' of parameter '<value>' contradicts its PCML usage 
+```
 
 **Meaning:** `api.yaml` sets a parameter's `direction`, but its PCML `usage` cannot go that way (for example `direction: response` on a PCML `input` parameter). **What to do:** change `direction` to one the parameter's PCML usage allows, or fix the PCML if the usage itself is wrong.
 
@@ -319,7 +379,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> The count field '<value>' 
+```text
+The count field '<value>' 
+```
 
 **Meaning:** a field named as an array's `trim.countField` is not a whole number (not `int`, and not `packed` or `zoned` with zero decimal places), so it cannot hold a count. **What to do:** point `countField` at a field that is a whole number, or change the PCML field's type.
 
@@ -329,7 +391,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> Parameter '<value>' is configured by both 'inject' and 'parameters'
+```text
+Parameter '<value>' is configured by both 'inject' and 'parameters'
+```
 
 **Meaning:** the same parameter is listed under both `inject` (filled in by the runtime) and `parameters` (configured for the caller), which contradict each other. **What to do:** remove the entry from whichever of the two it does not belong in.
 
@@ -339,7 +403,9 @@ Severity: **warning**. First seen at `pcml-overlay/src/main/java/ai/generativear
 
 It prints:
 
-> This folder has a PCML file but no overlay file (api.yaml)
+```text
+This folder has a PCML file but no overlay file (api.yaml)
+```
 
 **Meaning:** a folder under `apis/` has a PCML file but no `api.yaml`, so that program is not exposed by this repository at all. **What to do:** run `slay400 init` to scaffold an overlay for it, or ignore the warning if the program is not meant to be an API.
 
@@ -349,7 +415,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> More than one overlay file in this folder: 
+```text
+More than one overlay file in this folder: 
+```
 
 **Meaning:** `api.yaml` has top-level `route`/`method` (the single-operation form) and also `operations` (the several-operations form) at the same time, which the loader cannot reconcile. **What to do:** choose one form: either `route`/`method` at the top level, or a list under `operations`, not both.
 
@@ -359,7 +427,9 @@ Severity: **error**. First seen at `pcml-overlay/src/main/java/ai/generativearch
 
 It prints:
 
-> 'route' has two placeholders with no text between them, so the split of a segment is ambiguous: '<value>'
+```text
+'route' has two placeholders with no text between them, so the split of a segment is ambiguous: '<value>'
+```
 
 **Meaning:** `route` has two `{placeholders}` next to each other with no literal text between them, so splitting the path into segments is ambiguous. **What to do:** add a literal separator between the two placeholders in `route`.
 
@@ -369,7 +439,9 @@ Severity: **error**. First seen at `pcml-validation/src/main/java/ai/generativea
 
 It prints:
 
-> Operation <value>: the response always has at least <value> values, more than the limit of <value>; set 'trim' on a large array on the way, or raise 'defaults.maxResponseValues'
+```text
+Operation <value>: the response always has at least <value> values, more than the limit of <value>; set 'trim' on a large array on the way, or raise 'defaults.maxResponseValues'
+```
 
 **Meaning:** even before any per-call trimming, the response's arrays are guaranteed to add up to more values than `defaults.maxResponseValues` allows. **What to do:** set `trim` on one of the large arrays along the way, or raise `defaults.maxResponseValues` in `gateway.yaml` if the response is meant to be this large.
 
@@ -379,7 +451,9 @@ Severity: **error**. First seen at `pcml-cli/src/main/java/ai/generativearchitec
 
 It prints:
 
-> Cannot read source: 
+```text
+Cannot read source: 
+```
 
 **Meaning:** `init` found a `.pcml` file it could not read while scanning the repository. **What to do:** check the file is valid XML and readable; see the message for the underlying reason.
 
@@ -389,7 +463,9 @@ Severity: **error**. First seen at `pcml-parser/src/main/java/ai/generativearchi
 
 It prints:
 
-> Field '<value>' references struct '<value>', which is not defined
+```text
+Field '<value>' references struct '<value>', which is not defined
+```
 
 **Meaning:** a field's `struct` attribute names a struct that is not defined anywhere the PCML parser can see, from the point where the field is declared. **What to do:** check the struct's name for a typo, and that it is declared before it is used.
 
@@ -399,7 +475,9 @@ Severity: **error**. First seen at `pcml-parser/src/main/java/ai/generativearchi
 
 It prints:
 
-> The <value> of field '<value>' references '<value>', which does not exist in the same scope
+```text
+The <value> of field '<value>' references '<value>', which does not exist in the same scope
+```
 
 **Meaning:** a field's `count` or `length` attribute (PCML's way of saying "this many elements" or "this many bytes, from that field") names another field that PCML cannot find in the same scope. **What to do:** check the referenced field's name and that it is declared in the same struct or program.
 
@@ -409,7 +487,9 @@ Severity: **error**. First seen at `pcml-parser/src/main/java/ai/generativearchi
 
 It prints:
 
-> Missing required attribute 'version' on <pcml>
+```text
+Missing required attribute 'version' on <pcml>
+```
 
 **Meaning:** the `<pcml>` root element has no `version` attribute, which every PCML document must have. **What to do:** add `version="6.0"` (or the version the compiler actually wrote) to the `<pcml>` element.
 
@@ -419,7 +499,9 @@ Severity: **error**. First seen at `pcml-parser/src/main/java/ai/generativearchi
 
 It prints:
 
-> Duplicate program '<value>'
+```text
+Duplicate program '<value>'
+```
 
 **Meaning:** the same PCML file declares two `<program>` elements with the same `name`. **What to do:** rename one of them, or remove the duplicate; a program name must be unique within its file.
 
@@ -429,7 +511,9 @@ Severity: **warning**. First seen at `pcml-parser/src/main/java/ai/generativearc
 
 It prints:
 
-> Circular struct reference: <value> -> 
+```text
+Circular struct reference: <value> -> 
+```
 
 **Meaning:** two or more structs refer to each other in a cycle (A contains B, B contains A), which the parser notices but does not refuse by itself. **What to do:** usually harmless to leave if nothing uses the cycle, but check with `OVL013`, which the overlay raises as an error if an operation actually tries to expose such a field.
 
@@ -439,7 +523,9 @@ Severity: **info**. First seen at `pcml-parser/src/main/java/ai/generativearchit
 
 It prints:
 
-> Unknown attribute '<value>' on <<value>> is preserved in the attribute map
+```text
+Unknown attribute '<value>' on <<value>> is preserved in the attribute map
+```
 
 **Meaning:** an XML attribute the parser does not model explicitly was found and kept, unchanged, in the element's attribute map (the parser is lossless: nothing recognised is ever silently dropped). **What to do:** nothing; this is informational. It usually means the PCML uses an attribute slay400 does not yet give special meaning to.
 
@@ -449,7 +535,9 @@ Severity: **warning**. First seen at `pcml-scaffold/src/main/java/ai/generativea
 
 It prints:
 
-> Operation '<value>', parameter '<value>' was not edited: <value>; edit it by hand
+```text
+Operation '<value>', parameter '<value>' was not edited: <value>; edit it by hand
+```
 
 **Meaning:** `annotate` could not apply one of its edits to `api.yaml` -- it left the file as it was, rather than risk a bad edit. **What to do:** make the change by hand in `api.yaml`; the message names the operation, parameter and reason.
 
@@ -459,7 +547,9 @@ Severity: **error**. First seen at `pcml-cli/src/main/java/ai/generativearchitec
 
 It prints:
 
-> Operation '<value>', parameter '<value>' was not edited: the edited file was refused
+```text
+Operation '<value>', parameter '<value>' was not edited: the edited file was refused
+```
 
 **Meaning:** after `annotate` edited `api.yaml` in memory, re-reading the result back failed its own checks, so the edit was discarded rather than written -- a safeguard against writing a file `annotate` cannot parse back. **What to do:** make the change by hand in `api.yaml`, since an edit `annotate` cannot verify is not applied automatically.
 
@@ -469,7 +559,9 @@ Severity: **error**. First seen at `pcml-scaffold/src/main/java/ai/generativearc
 
 It prints:
 
-> ; write the overlay by hand
+```text
+; write the overlay by hand
+```
 
 **Meaning:** `init` could not scaffold a first `api.yaml` for a PCML file -- usually a structure it does not know how to generate a default overlay for (for example, a recursive struct). **What to do:** write the overlay by hand for this program.
 
@@ -479,7 +571,9 @@ Severity: **warning**. First seen at `pcml-scaffold/src/main/java/ai/generativea
 
 It prints:
 
-> Operation '<value>': even trimmed everywhere it can be, the response always has at least <value> values, more than the limit of <value>; a count field narrows it further than 'dropBlank' can, or raise 'defaults.maxResponseValues'
+```text
+Operation '<value>': even trimmed everywhere it can be, the response always has at least <value> values, more than the limit of <value>; a count field narrows it further than 'dropBlank' can, or raise 'defaults.maxResponseValues'
+```
 
 **Meaning:** while scaffolding a first `api.yaml`, `init` found that even trimming every large array it can, the response is still guaranteed to exceed `defaults.maxResponseValues` -- the scaffold could not fix this by itself. **What to do:** add a count field for one of the arrays so `trim` can narrow it further, or raise `defaults.maxResponseValues` in `gateway.yaml`.
 
@@ -489,7 +583,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> A required field is missing
+```text
+A required field is missing
+```
 
 **Meaning:** while encoding a request, a field marked `required: true` (or required by its PCML usage) has no value. **What to do:** the caller must supply a value for the field the message names.
 
@@ -499,7 +595,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> The value is not binary
+```text
+The value is not binary
+```
 
 **Meaning:** a `binary` field was given a value that is not binary data (for example a JSON string that is not valid base64). **What to do:** send a correctly base64-encoded value for a binary field.
 
@@ -509,7 +607,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> The value is too long: at most <value> bytes<value>The value must be exactly <value> bytes
+```text
+The value is too long: at most <value> bytes<value>The value must be exactly <value> bytes
+```
 
 **Meaning:** a value is too long for its field's declared byte length, or (for a fixed-length binary field) is not exactly that length. **What to do:** shorten the value to fit the field, named with its limit in the message.
 
@@ -519,7 +619,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> The text is not 
+```text
+The text is not 
+```
 
 **Meaning:** a text value does not have the shape its semantic type expects (for example a `date` field whose text does not match its `format`). **What to do:** send a value in the format the field's `type` and `format` (if any) require.
 
@@ -529,7 +631,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> The list has more elements than the field holds: at most 
+```text
+The list has more elements than the field holds: at most 
+```
 
 **Meaning:** a list sent for an array field has more elements than the field can hold. **What to do:** send at most as many elements as the PCML array's declared size, named in the message.
 
@@ -539,7 +643,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> Bytes were expected
+```text
+Bytes were expected
+```
 
 **Meaning:** while decoding the program's output, a value does not have the shape the field's wire type expects (for example text where bytes, a list or a struct was expected). **What to do:** this is a mismatch between the PCML and what the program actually wrote; check the program and the PCML agree, since the caller cannot fix a program's own output.
 
@@ -549,7 +655,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> The number cannot be read as a whole number
+```text
+The number cannot be read as a whole number
+```
 
 **Meaning:** while decoding, a wire value (text, packed or zoned) cannot be read as the semantic type the overlay gives it (for example letters where a whole or decimal number was expected). **What to do:** check that the field's `type` in `api.yaml` actually matches what the program writes there.
 
@@ -559,7 +667,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> The field that holds the number of elements is not a number
+```text
+The field that holds the number of elements is not a number
+```
 
 **Meaning:** an array's count field (`trim.countField`) came back negative, not a number, or larger than the array itself, so the array cannot be trimmed to it safely. **What to do:** this points at the program's output or the PCML, not at the caller; check that the count field and the array it counts actually agree.
 
@@ -569,7 +679,9 @@ Severity: **error**. First seen at `pcml-codec/src/main/java/ai/generativearchit
 
 It prints:
 
-> The response has more values than the limit allows; it is not built beyond that point
+```text
+The response has more values than the limit allows; it is not built beyond that point
+```
 
 **Meaning:** after trimming every array it can, the response still has more scalar values than `defaults.maxResponseValues` allows, and decoding stops at that point rather than building an unbounded response. **What to do:** raise `defaults.maxResponseValues` in `gateway.yaml`, or add `trim` to a large array in the response (see the guide on arrays and counts).
 

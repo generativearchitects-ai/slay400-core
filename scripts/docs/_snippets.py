@@ -11,6 +11,8 @@ EXAMPLES = Path(__file__).resolve().parent.parent.parent / "docs" / "examples"
 # <!-- snippet: examples/<example>/steps.sh[#<region>] -->, then a fenced code block.
 _MARKER = re.compile(r"<!--\s*snippet:\s*(?P<source>examples/[^\s#]+)(?:#(?P<region>[^\s]+))?\s*-->\n```[^\n]*\n(?P<body>.*?)\n```", re.DOTALL)
 _PLAIN_FENCE = re.compile(r"(?<!-->\n)```(?P<lang>[^\n]*)\n(?P<body>.*?)\n```", re.DOTALL)
+_ANY_FENCE = re.compile(r"```[^\n]*\n.*?\n```", re.DOTALL)
+_INLINE_CODE = re.compile(r"`[^`\n]*`")
 _REGION = re.compile(r"^#\s*region:\s*(?P<name>\S+)\s*$")
 _ENDREGION = re.compile(r"^#\s*endregion\s*$")
 
@@ -40,6 +42,17 @@ def unmarked_fences(page_text: str) -> list[str]:
         return any(start <= pos < end for start, end in marked_spans)
 
     return [m.group("lang") for m in _PLAIN_FENCE.finditer(page_text) if not covered(m.start())]
+
+
+def strip_code(page_text: str) -> str:
+    """page_text with every fenced code block and every inline code span blanked out (spaces, same length, so
+    line numbers and every other character's position are unchanged) -- for a check that must look only at
+    prose, such as the no-raw-HTML rule (specs/documentation.md sections 4 and 7, kickoff 19)."""
+
+    def blank(m: re.Match) -> str:
+        return re.sub(r"[^\n]", " ", m.group(0))
+
+    return _INLINE_CODE.sub(blank, _ANY_FENCE.sub(blank, page_text))
 
 
 def regions_in(script_text: str) -> dict[str, list[str]]:

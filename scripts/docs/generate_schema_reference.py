@@ -56,6 +56,13 @@ appliesTo: "0.1"
 ]
 
 
+def escape_prose(text: str) -> str:
+    """Escapes &, < and > so that text taken from a schema -- never typed by a page author, so never known to be
+    safe -- cannot be read as an HTML tag or comment once it reaches a page outside a code span (kickoff 19): for
+    example a description containing "${environment.<name>}"."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def resolve(node, defs):
     if isinstance(node, dict) and "$ref" in node:
         name = node["$ref"].removeprefix("#/$defs/")
@@ -71,7 +78,7 @@ def rows(properties: dict, defs: dict, prefix: str = "") -> list[tuple[str, str,
         if isinstance(kind, list):
             kind = " or ".join(str(k) for k in kind)
         description = node.get("description", "")
-        out.append((prefix + name, str(kind), description))
+        out.append((prefix + name, escape_prose(str(kind)), escape_prose(description)))
         nested = node.get("properties")
         if nested:
             out.extend(rows(nested, defs, prefix + name + "."))
@@ -88,7 +95,7 @@ def render(page: dict) -> str:
               "", f"# {page['heading']}", "", page["intro"], "", "## Fields", "", "| Field | Type | Description |", "|---|---|---|"]
     for name, kind, description in table_rows:
         lines.append(f"| `{name}` | {kind} | {description} |")
-    lines += ["", schema.get("description", ""), "", "## Complete example", "", "```yaml",
+    lines += ["", escape_prose(schema.get("description", "")), "", "## Complete example", "", "```yaml",
               page["example"].read_text(encoding="utf-8").rstrip("\n"), "```", ""]
     return "\n".join(lines) + "\n"
 
