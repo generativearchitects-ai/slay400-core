@@ -2,16 +2,30 @@
 # Builds the artifacts that would be published twice, each time from a clean tree, and compares the checksum of every file.
 # Two builds of the same commit must give the same bytes (project.build.outputTimestamp in pom.xml, kickoff 12).
 #
-# Run from anywhere: scripts/check-reproducible.sh. Needs nothing but Java and the Maven Wrapper; it signs nothing and
-# uploads nothing. It installs the modules into your local Maven repository first (the test jars that some modules share are
-# only built by an ordinary build, and the release profile leaves them out of the deployment). Exit code 0: same bytes.
-# 1: a difference, listed. The staging folder of the second build stays in target/.
+# Run from anywhere: scripts/check-reproducible.sh [VERSION]. Needs nothing but Java and the Maven Wrapper; it signs nothing
+# and uploads nothing. It installs the modules into your local Maven repository first (the test jars that some modules
+# share are only built by an ordinary build, and the release profile leaves them out of the deployment).
+#
+# VERSION, if given, is set with versions:set before each of the two builds (kickoff 20 point 5: a build from a tag by hand
+# gives the same version) and put back with versions:revert afterwards, even on failure; with no VERSION, the two builds use
+# whatever version is already checked in (a snapshot, ordinarily). Exit code 0: same bytes. 1: a difference, listed. The
+# staging folder of the second build stays in target/.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+VERSION="${1:-}"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+if [ -n "$VERSION" ]; then
+  # -DgenerateBackupPoms defaults to true: every pom.xml gets a .versionsBackup file, which "versions:revert" puts
+  # back in place of the version just set, unconditionally, so the working tree is exactly as it was on exit --
+  # on failure too, since this runs in a trap.
+  trap './mvnw -q versions:revert || true; rm -rf "$work"' EXIT
+  echo "Setting the version to $VERSION for this check (put back when this script exits)..."
+  ./mvnw -B -q versions:set -DnewVersion="$VERSION" -DprocessAllModules=true
+else
+  trap 'rm -rf "$work"' EXIT
+fi
 
 # The same arguments as the CI job that checks the files (scripts/check_staged_artifacts.py): no tests, no signature, no upload.
 build() {

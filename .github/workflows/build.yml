@@ -98,9 +98,10 @@ jobs:
           path: '*/target/pit-reports'
           if-no-files-found: ignore
 
-  # What a release would publish, checked without publishing anything (kickoff 12): the release profile stages every module
-  # without signing and without uploading, and the files, the POM elements and the licence files are checked. A small project
-  # that depends on the staged files the way the gateway will is built against them. No secret is used.
+  # What a release would publish, checked without publishing anything (kickoff 12; from an invented tag, kickoff 20 point 6):
+  # the release profile stages every module without signing and without uploading, and the files, the POM elements and the
+  # licence files are checked. A small project that depends on the staged files the way the gateway will is built against
+  # them, and the archive's own "slay400 --version" is checked against the invented version. No secret is used.
   release-files:
     runs-on: ubuntu-latest
     steps:
@@ -112,6 +113,19 @@ jobs:
           cache: maven
       - name: Tests of the release checks
         run: python3 -m unittest discover -s scripts
+      # An invented tag of the snapshot's own line (kickoff 20 point 6): never check_release_tag.py's own gate here, which a
+      # pull request's commit could never pass (it is not yet in main) -- that gate is check_release_tag.py's own job, with
+      # its own tests; this job exercises everything a release does *after* that gate, so the path is not first run on the
+      # day of a release.
+      - name: Invent a version for this dry run
+        id: version
+        run: |
+          snapshot="$(python3 -I -c "import xml.etree.ElementTree as E; print(E.parse('pom.xml').getroot().find('{http://maven.apache.org/POM/4.0.0}version').text)")"
+          echo "version=${snapshot%-SNAPSHOT}-ci.1" >> "$GITHUB_OUTPUT"
+      # The same step release.yml runs from a real tag, with an invented version instead: every module, pcml-bom included,
+      # in this checkout only. Nothing is committed or pushed.
+      - name: Set the version for this dry run (not committed)
+        run: ./mvnw -B versions:set -DnewVersion="${{ steps.version.outputs.version }}" -DprocessAllModules=true -DgenerateBackupPoms=false
       # The next two commands MUST STAY THE SAME as the ones that snapshot.yml and release.yml run to publish: an ordinary
       # "install", then the release-profile "clean deploy". If they differ, this job stops seeing what the publishing jobs hit
       # (C243: "deploy" without "clean" after "install" made the shade plugin pack the shaded jar of pcml-cli a second time, and
@@ -142,10 +156,24 @@ jobs:
       - name: Build a consumer against the staged files
         run: >
           ./mvnw -B -f consumer-check/pom.xml
-          -Dslay400.version="$(python3 -I -c "import xml.etree.ElementTree as E; print(E.parse('pom.xml').getroot().find('{http://maven.apache.org/POM/4.0.0}version').text)")"
+          -Dslay400.version="${{ steps.version.outputs.version }}"
           -Dstaging.repo="file://$PWD/${{ steps.staging.outputs.dir }}"
           -Dmaven.repo.local="$PWD/target/consumer-repo"
           test
+      # The archive's own name, top folder and "slay400 --version" all carry the invented version, the same way they would
+      # carry a real tag's version, because versions:set above is the only thing that ever names a release version.
+      - name: Check the archive and "slay400 --version"
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          rm -rf /tmp/launcher-check && mkdir -p /tmp/launcher-check
+          tar -xzf "pcml-launcher/target/pcml-launcher-$version.tar.gz" -C /tmp/launcher-check
+          got="$(/tmp/launcher-check/slay400-$version/bin/slay400 --version)"
+          want="slay400 $version"
+          if [ "$got" != "$want" ]; then
+            echo "::error::slay400 --version printed '$got', expected '$want'" >&2
+            exit 1
+          fi
+          echo "slay400 --version: $got"
 
   # Documentation (kickoff 16, specs/documentation.md): front matter and page shape, that every shown command,
   # output and file content comes from docs/examples/ (snippet markers checked against their source, then every

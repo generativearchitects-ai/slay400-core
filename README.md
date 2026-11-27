@@ -77,21 +77,42 @@ repository `https://central.sonatype.com/repository/maven-snapshots/` with snaps
 
 ## Release
 
-A push to `main` runs the `snapshot` workflow; a tag `v<version>` on a commit that is in `main` runs the `release` workflow, which signs and uploads the
-release for validation, and the owner publishes it in the Central Portal. Both run in the protected GitHub environment
-`release`. Everything that can be checked without the accounts is checked in every build (`build` workflow): the
-`release` profile stages all modules without signing or uploading, `scripts/check_staged_artifacts.py` checks the files, the
-POM elements and the licence files, a small project in `consumer-check/` is built against the staged files the way the
-gateway will, and `scripts/check-reproducible.sh` builds twice and compares the checksums. To run the first part yourself:
+`main` always carries a snapshot version (`0.1.0-SNAPSHOT` now); a push to it runs the `snapshot` workflow, which publishes
+that version to the Central snapshot repository. A release takes its version from a tag, `v<version>`, and nowhere else:
+nothing is ever set by hand before or after one. To release:
+
+1. **Name the version once**, by either path:
+   - push a tag: `git tag v0.1.0 && git push origin v0.1.0` (on a commit already in `main`); or
+   - use GitHub's "Draft a new release" page: fill in the tag (`v0.1.0`) and publish it, as a draft or not, before or
+     after the workflow runs -- either order works.
+2. Pushing the tag (or GitHub creating it for the release above) starts the `release` workflow, in the protected
+   environment `release`. It checks that the tag can be released (`scripts/check_release_tag.py`: the tag's form, that
+   its commit is in `main`, that its line matches the snapshot's, that every module agrees, that no other tag or
+   version on Central already has this name), sets that version with `versions:set` in its own checkout only, builds,
+   signs and uploads the release for validation, then attaches the distribution archives to the GitHub Release of the
+   tag -- the one made in step 1, if there is one, or a new draft otherwise.
+3. **If the check in step 2 fails**, nothing was built or uploaded: read the message, fix what it names (most often,
+   `main` is still on the line of an earlier release -- see step 5) and push a new tag.
+4. **Once the workflow succeeds**, open the deployment it made in the Central Portal, review it, and publish it there
+   by hand; do the same for the GitHub Release (publish the draft, or leave it as a pre-release for a version with a
+   pre-release part).
+5. **Afterwards, if this was the last release of its line**, move `main` to the next snapshot with an ordinary pull
+   request: `./mvnw versions:set -DnewVersion=<next>-SNAPSHOT -DprocessAllModules=true -DgenerateBackupPoms=false`.
+   `main` must always carry a snapshot, or the next release's tag has no line to belong to.
+
+Everything that can be checked without the accounts is checked in every build (`build` workflow), from an invented
+version of the snapshot's own line (for example `0.1.0-ci.1`): the `release` profile stages all modules without signing
+or uploading, `scripts/check_staged_artifacts.py` checks the files, the POM elements and the licence files, a small
+project in `consumer-check/` is built against the staged files the way the gateway will, the archive's own
+`slay400 --version` is checked, and `scripts/check-reproducible.sh` builds twice and compares the checksums. To build
+from a tag by hand, the same way the `release` workflow does (one line, not committed):
 
 ```
-./mvnw install -DskipTests                  # an ordinary build first: it makes the test jars that some modules share
+./mvnw versions:set -DnewVersion=0.1.0 -DprocessAllModules=true -DgenerateBackupPoms=false && ./mvnw install -DskipTests
 ./mvnw -Prelease -Dgpg.skip=true -DskipUpload=true -DskipTests clean deploy
-python3 scripts/check_staged_artifacts.py target/central-deferred   # target/central-staging instead, for a release version
+python3 scripts/check_staged_artifacts.py target/central-staging   # target/central-deferred instead, for a snapshot version
+scripts/check-reproducible.sh 0.1.0   # with no argument, checks whatever version is already checked in
 ```
-
-To set the version of a release in every POM, including `pcml-bom`: `./mvnw versions:set -DnewVersion=<version>
--DprocessAllModules=true -DgenerateBackupPoms=false`; `scripts/check_release_tag.py v<version>` checks the result.
 
 ## Install
 
