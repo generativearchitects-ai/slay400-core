@@ -135,7 +135,7 @@ def render(codes: dict[str, tuple[str, str, str]]) -> tuple[str, list[str]]:
         severity, message, location = codes[code]
         notes_file = NOTES / f"{code}.md"
         lines += [f"## {code}", "", f"Severity: **{severity.lower()}**. First seen at `{location}`.", "",
-                  "It prints:", "", f"> {message}", ""]
+                  "It prints:", "", "```text", message, "```", ""]
         if notes_file.is_file():
             lines += [notes_file.read_text(encoding="utf-8").strip(), ""]
         else:

@@ -78,6 +78,14 @@ class RenderTest(unittest.TestCase):
         rendered, _ = gen.render(codes)
         self.assertLess(rendered.index("## A001"), rendered.index("## B002"))
 
+    def test_a_message_with_a_placeholder_comment_open_and_ampersand_is_shown_as_code_not_a_quotation(self):
+        # kickoff 19: a quotation ("> message") put a bare "<value>" in prose, which a Markdown renderer reads as
+        # an HTML tag and swallows. A fenced code block shows every character as written, with no escaping needed.
+        codes = {"XYZ001": ("ERROR", "API <value> is new <!-- not a comment --> & more", "f.java:1")}
+        rendered, _ = gen.render(codes)
+        self.assertIn("```text\nAPI <value> is new <!-- not a comment --> & more\n```", rendered)
+        self.assertNotIn("> API", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

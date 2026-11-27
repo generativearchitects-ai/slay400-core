@@ -28,7 +28,7 @@ The overlay file, one per folder under `apis/`: the API contract (direction, sem
 | `summary` | string |  |
 | `description` | string |  |
 | `tags` | array |  |
-| `inject` | object | Parameters filled by the runtime: a literal, or ${environment.<name>} / ${tenant.<name>}. |
+| `inject` | object | Parameters filled by the runtime: a literal, or ${environment.&lt;name&gt;} / ${tenant.&lt;name&gt;}. |
 | `parameters` | object |  |
 | `error` | object |  |
 | `error.when` | object |  |
